@@ -125,6 +125,8 @@ Cada entrada y salida (incluida la comida) se guarda en Odoo con la ubicación: 
 
 Ábrelo desde el icono de la barra de menú → **Abrir panel** (⌘P), o en <http://127.0.0.1:8787>.
 
+- **Cuenta:** foto y nombre del usuario de Odoo con el que se registra todo, si el token sigue siendo válido, y servidor y base de datos a los que se conecta.
+- **Tema:** Sistema, Claro u Oscuro (se recuerda la elección).
 - **Asistencia de hoy:** entrada, comida, salida, tiempo trabajado y ubicación de cada registro; botones para registrar lo que falte.
 - **Mis tareas pendientes:** asignadas a ti y abiertas, por proyecto o por fecha límite.
 - **Tareas por proyecto:** proyectos donde tienes tareas, eres seguidor o responsable; tareas abiertas agrupadas por etapa (paginadas), filtro "solo mías", búsqueda y nueva tarea.
@@ -138,6 +140,9 @@ Escucha solo en `127.0.0.1`, rechaza otros `Host`/`Origin` y exige `Content-Type
 
 | Método | Ruta | Descripción |
 | ------ | ---- | ----------- |
+| GET | `/api/account` | Cuenta de Odoo que usa la API y validación del token (`?fresh=1` vuelve a autenticar) |
+| GET | `/api/account/avatar` | Foto de perfil del usuario en Odoo |
+| GET | `/api/stages?projects=1,2` | Etapas de varios proyectos |
 | GET | `/api/attendance/today` | Estado del día (`?fresh=1` sin caché) |
 | GET / POST | `/api/location` | Ubicación actual `{latitude, longitude, accuracy?, city?, country?, at?}` |
 | POST | `/api/attendance/check-in` · `check-out` | Entrada / salida |

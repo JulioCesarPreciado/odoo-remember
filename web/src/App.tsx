@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { api, type Task } from './api';
+import { Account } from './components/Account';
 import { Attendance } from './components/Attendance';
 import { MyTasks } from './components/MyTasks';
 import { Projects } from './components/Projects';
@@ -45,7 +46,7 @@ export function App() {
             <h1 className="text-lg font-semibold leading-tight">Odoo Asistencia</h1>
             <p className="text-xs text-zinc-500">{capitalize(new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
           </div>
-          <div className="ml-auto"><ThemeToggle /></div>
+          <div className="ml-auto flex items-center gap-2"><ThemeToggle /><Account /></div>
         </header>
 
         <Attendance />
