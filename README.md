@@ -36,6 +36,15 @@ Para ejecutar este proyecto es necesario contar con las siguientes dependencias:
 - pnpm v10 o superior
 - Una cuenta de Odoo 18 con empleado asociado y una API key
 
+### Permisos en Odoo
+
+Con una API key, Odoo aplica los permisos del usuario tal cual. Los empleados sin rol de RH registran asistencia desde el menú de Odoo, pero **no pueden hacerlo por API**. Por eso, para la parte de asistencia, un administrador de Odoo debe:
+
+1. Asignarle al usuario el grupo **Asistencias: Oficial** (*Officer: Manage attendances*).
+2. En la ficha de empleado, pestaña de ajustes de RH, ponerlo como su propio **responsable de asistencias**.
+
+Las reglas de Odoo limitan a un oficial a los empleados de los que es responsable, así que solo podrá ver y registrar las suyas. Sin esto, el panel y el menú muestran *"Tu usuario de Odoo no tiene permisos de asistencias"*; las tareas, el temporizador y el MCP funcionan con el permiso normal de **Proyecto: Usuario**.
+
 ---
 
 ## 🛠 Instalación para Desarrollo

@@ -313,6 +313,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func show(_ t: Today) {
         odooAttendanceURL = t.odooAttendanceUrl
         statusLine.title = t.summary
+        statusLine.toolTip = nil
         items[kActionCheckIn]?.isEnabled = t.actions.checkIn
         items[kActionCheckOut]?.isEnabled = t.actions.checkOut
         items[kActionLunchStart]?.isEnabled = t.actions.lunchStart
@@ -439,7 +440,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 show(t)
                 handleReminder(t)
             } catch {
-                statusLine.title = error.localizedDescription
+                // En el menú solo la primera oración; el mensaje completo al pasar el cursor.
+                let message = error.localizedDescription
+                statusLine.title = message.components(separatedBy: ". ").first ?? message
+                statusLine.toolTip = message
                 setIcon("exclamationmark.triangle")
             }
         }

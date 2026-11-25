@@ -50,6 +50,21 @@ function place(r: GeoRow, p: 'in' | 'out'): Place | null {
 let cache: { at: number; date: string; raw: Raw } | null = null;
 export const invalidate = () => { cache = null; };
 
+/** Mensaje cuando el usuario no tiene permisos de asistencias en Odoo (lo normal para empleados sin rol de RH). */
+export const NO_ATTENDANCE_ACCESS =
+  'Tu usuario de Odoo no tiene permisos de asistencias. Pide a un administrador de Odoo que te asigne el grupo ' +
+  '«Asistencias: Oficial» y que en tu ficha de empleado te ponga como tu propio responsable de asistencias; así solo podrás ver y registrar las tuyas.';
+
+/** Traduce el AccessError de Odoo sobre asistencias a un mensaje que diga qué hacer. */
+async function guarded<T>(p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 403) throw new HttpError(NO_ATTENDANCE_ACCESS, 403);
+    throw e;
+  }
+}
+
 async function employeeId(): Promise<number> {
   const { employeeId } = await odoo.me();
   if (!employeeId) throw new HttpError('Tu usuario no tiene un empleado asociado en Odoo', 404);
@@ -60,7 +75,7 @@ async function fetchRaw(now: Date, fresh = false): Promise<Raw> {
   const date = localDate(now);
   if (!fresh && cache && cache.date === date && Date.now() - cache.at < 20_000) return cache.raw;
   const emp = await employeeId();
-  const [[e], rows] = await Promise.all([
+  const [[e], rows] = await guarded(Promise.all([
     odoo.call<{ attendance_state: string; last_check_in: string | false }[]>('hr.employee', 'read', [[emp]], {
       fields: ['attendance_state', 'last_check_in'],
     }),
@@ -69,7 +84,7 @@ async function fetchRaw(now: Date, fresh = false): Promise<Raw> {
       [['employee_id', '=', emp], ['check_in', '>=', toOdoo(startOfDay(now))]],
       { fields: ['check_in', 'check_out', ...GEO_FIELDS], order: 'check_in asc' },
     ),
-  ]);
+  ]));
   const raw: Raw = {
     isIn: e.attendance_state === 'checked_in',
     lastCheckIn: fromOdoo(e.last_check_in),
@@ -202,14 +217,14 @@ function reminder(t: Today, now: Date, returnDue: Date | null): Reminder | null 
 // ---------- Acciones ----------
 
 async function createCheckIn(at: Date, fix: GeoFix | null) {
-  await odoo.call('hr.attendance', 'create', [{ employee_id: await employeeId(), check_in: toOdoo(at), ...odooGeoFields('in', fix) }]);
+  await guarded(odoo.call('hr.attendance', 'create', [{ employee_id: await employeeId(), check_in: toOdoo(at), ...odooGeoFields('in', fix) }]));
 }
 
 async function closeOpen(at: Date, fix: GeoFix | null) {
-  const [id] = await odoo.call<number[]>('hr.attendance', 'search',
-    [[['employee_id', '=', await employeeId()], ['check_out', '=', false]]], { order: 'check_in desc', limit: 1 });
+  const [id] = await guarded(odoo.call<number[]>('hr.attendance', 'search',
+    [[['employee_id', '=', await employeeId()], ['check_out', '=', false]]], { order: 'check_in desc', limit: 1 }));
   if (!id) throw new HttpError('No se encontró una entrada abierta', 409);
-  await odoo.call('hr.attendance', 'write', [[id], { check_out: toOdoo(at), ...odooGeoFields('out', fix) }]);
+  await guarded(odoo.call('hr.attendance', 'write', [[id], { check_out: toOdoo(at), ...odooGeoFields('out', fix) }]));
 }
 
 export async function checkIn(): Promise<Today> {
