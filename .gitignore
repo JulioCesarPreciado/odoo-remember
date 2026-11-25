@@ -1,0 +1,14 @@
+# Secretos y datos locales (credenciales de Odoo, ubicación, estado de la comida)
+.env
+.env.*
+!.env.example
+data/
+
+# Dependencias y builds
+node_modules/
+dist/
+build/
+
+# Sistema y logs
+.DS_Store
+*.log
