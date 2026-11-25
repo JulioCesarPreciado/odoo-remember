@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Task, TaskState } from '../api';
 import { useTaskActions } from '../taskActions';
+import { useTimer } from '../timer';
 import { STATE_CLASS, STATE_LABEL, Spinner, Star, deadlineInfo } from '../ui';
 
 const STATES = Object.keys(STATE_LABEL) as TaskState[];
@@ -9,11 +10,14 @@ export function TaskRow({ task, onOpen, showProject, showStage = true, active }:
   task: Task; onOpen: (t: Task) => void; showProject?: boolean; showStage?: boolean; active?: boolean;
 }) {
   const d = deadlineInfo(task.deadline);
+  const timing = useTimer().timer?.taskId === task.id;
   return (
     <div className={`flex items-start gap-3 px-4 py-2.5 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${active ? 'bg-brand-50 dark:bg-brand-600/15' : ''}`}>
       <span className="mt-0.5"><Star on={task.priority} /></span>
       <button type="button" onClick={() => onOpen(task)} className="min-w-0 flex-1 text-left" title="Abrir detalle">
-        <span className="line-clamp-2 text-sm font-medium hover:underline">{task.name}</span>
+        <span className="line-clamp-2 text-sm font-medium hover:underline">
+          {timing && <span className="mr-1 text-brand-600" title="Temporizador corriendo">⏱</span>}{task.name}
+        </span>
         <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
           {showProject && <span>{task.project?.name ?? 'Sin proyecto'}</span>}
           {!task.mine && task.assignees.length > 0 && <span>{task.assignees.map((a) => a.name.split(' ')[0]).join(', ')}</span>}

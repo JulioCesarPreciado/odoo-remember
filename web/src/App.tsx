@@ -7,6 +7,8 @@ import { Projects } from './components/Projects';
 import { TaskPanel } from './components/TaskPanel';
 import { TaskActionsProvider } from './taskActions';
 import { ThemeToggle } from './theme';
+import { TimerProvider } from './timer';
+import { TimerBar } from './components/TimerBar';
 import { ToastProvider, useLoad } from './ui';
 
 type View = 'mine' | 'projects';
@@ -39,6 +41,7 @@ export function App() {
   return (
     <ToastProvider>
     <TaskActionsProvider onChanged={changed}>
+    <TimerProvider onChanged={changed}>
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-5">
         <header className="flex items-center gap-3">
           <img src="/logo.png" alt="" className="size-9" />
@@ -48,6 +51,8 @@ export function App() {
           </div>
           <div className="ml-auto flex items-center gap-2"><ThemeToggle /><Account /></div>
         </header>
+
+        <TimerBar onOpen={setOpenId} />
 
         <Attendance />
 
@@ -67,6 +72,7 @@ export function App() {
       </div>
 
       {openId !== null && <TaskPanel taskId={openId} version={version} onClose={close} onChanged={changed} />}
+    </TimerProvider>
     </TaskActionsProvider>
     </ToastProvider>
   );

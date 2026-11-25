@@ -125,3 +125,31 @@ export interface TimerInfo {
   elapsedMinutes: number;
   url: string;
 }
+
+/** Cambios a una tarea (crear y editar). */
+export interface TaskPatch {
+  stageId?: number;
+  state?: TaskState;
+  priority?: boolean;
+  /** "YYYY-MM-DD" (medianoche local) o fecha-hora ISO; null la quita. */
+  deadline?: string | null;
+  name?: string;
+  /** Reemplaza las etiquetas por estas (por nombre). */
+  tags?: string[];
+  createMissingTags?: boolean;
+  allocatedHours?: number;
+  /** Inicio planeado (fecha-hora). */
+  plannedStart?: string | null;
+}
+
+export interface NewTask extends Omit<TaskPatch, 'state' | 'deadline' | 'plannedStart'> {
+  projectId: number;
+  name: string;
+  description?: string;
+  deadline?: string;
+  plannedStart?: string;
+  /** Por defecto true: asignada al usuario del token. */
+  assignToMe?: boolean;
+  /** "Ya empecé a las…": inicia el temporizador con esa hora de inicio. */
+  startedAt?: string;
+}

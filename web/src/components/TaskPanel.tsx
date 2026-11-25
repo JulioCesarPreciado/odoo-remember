@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type Stage, type TaskDetail, type TaskState } from '../api';
-import { Empty, STATE_LABEL, Spinner, Star, deadlineInfo, useAction, useLoad } from '../ui';
+import { fmtMinutes, todayAt, useTimer } from '../timer';
+import { Empty, STATE_LABEL, Spinner, Star, deadlineInfo, hhmm, useAction, useLoad } from '../ui';
+import { DeadlineInput, TagPicker, forgetTags, joinDeadline, splitDeadline, tagsPayload, type PickedTag } from './TaskFields';
+import { StopTimerForm } from './TimerBar';
 
 const STATES = Object.keys(STATE_LABEL) as TaskState[];
 
@@ -32,7 +35,10 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
       <header className="flex items-start gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
         <div className="min-w-0 flex-1">
           <p className="text-xs text-zinc-500">{t?.project?.name ?? (t ? 'Sin proyecto' : '')}</p>
-          <h2 className="text-lg font-semibold leading-snug">{t?.name ?? 'Cargando…'}</h2>
+          <h2 className="flex items-start gap-2 text-lg font-semibold leading-snug">
+            {t && <span className="mt-1.5"><Star on={t.priority} onClick={() => apply('prio', () => api.updateTask(t.id, { priority: !t.priority }), 'Prioridad actualizada')} /></span>}
+            {t?.name ?? 'Cargando…'}
+          </h2>
         </div>
         {t && <a className="btn-ghost shrink-0" href={t.url} target="_blank" rel="noreferrer">Abrir en Odoo ↗</a>}
         <button className="btn-ghost shrink-0" onClick={onClose} aria-label="Cerrar">✕</button>
@@ -60,20 +66,17 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
                   {STATES.map((s) => <option key={s} value={s}>{STATE_LABEL[s]}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="label" htmlFor="tp-deadline">Fecha límite</label>
-                <input id="tp-deadline" type="date" className="input" disabled={!!busy} value={t.deadline ?? ''}
-                  onChange={(e) => apply('deadline', () => api.updateTask(t.id, { deadline: e.target.value || null }), 'Fecha actualizada')} />
-                {deadlineInfo(t.deadline)?.overdue && <p className="mt-1 text-xs text-red-600">Vencida</p>}
-              </div>
-              <div>
-                <span className="label">Prioridad · Horas</span>
-                <div className="flex h-[34px] items-center gap-3 text-sm">
-                  <Star on={t.priority} onClick={() => apply('prio', () => api.updateTask(t.id, { priority: !t.priority }), 'Prioridad actualizada')} />
-                  <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
-                    {t.effectiveHours.toFixed(2)} h{t.allocatedHours > 0 && ` de ${t.allocatedHours.toFixed(2)} h`}
-                  </span>
-                </div>
+              <Deadline task={t} busy={!!busy} onSave={(deadline) => apply('deadline', () => api.updateTask(t.id, { deadline }), 'Fecha límite actualizada')} />
+              <Hours task={t} busy={!!busy} onSave={(allocatedHours) => apply('hours', () => api.updateTask(t.id, { allocatedHours }), 'Horas estimadas actualizadas')} />
+              <div className="col-span-2">
+                <label className="label" htmlFor="tp-tags">Etiquetas</label>
+                <TagPicker id="tp-tags" disabled={!!busy} value={t.tags.map((name) => ({ name, isNew: false }))}
+                  onChange={async (tags: PickedTag[]) => {
+                    // Aquí se guarda al instante: crear etiquetas en Odoo requiere confirmarlo.
+                    const created = tags.filter((x) => x.isNew).map((x) => `«${x.name}»`);
+                    if (created.length && !window.confirm(`¿Crear en Odoo la etiqueta ${created.join(', ')}? La verán todos los proyectos.`)) return;
+                    if (await apply('tags', () => api.updateTask(t.id, tagsPayload(tags)), 'Etiquetas actualizadas') && tags.some((x) => x.isNew)) forgetTags();
+                  }} />
               </div>
             </div>
 
@@ -83,6 +86,8 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
                 {busy === 'done' && <Spinner className="size-3" />} Marcar como hecha
               </button>
             )}
+
+            {t.project && <TimerSection taskId={t.id} />}
 
             <div className="text-xs text-zinc-500">Asignada a: {t.assignees.map((a) => a.name).join(', ') || 'nadie'}</div>
 
@@ -99,6 +104,82 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
         )}
       </div>
     </aside>
+  );
+}
+
+function Deadline({ task, busy, onSave }: { task: TaskDetail; busy: boolean; onSave: (v: string | null) => Promise<unknown> }) {
+  const server = splitDeadline(task.deadlineAt);
+  const [v, setV] = useState(server);
+  useEffect(() => setV(splitDeadline(task.deadlineAt)), [task.deadlineAt]);
+  const dirty = v.date !== server.date || v.time !== server.time;
+  return (
+    <div className="col-span-2 sm:col-span-1">
+      <label className="label" htmlFor="tp-deadline">Fecha límite <span className="font-normal">(hora opcional)</span></label>
+      <DeadlineInput id="tp-deadline" date={v.date} time={v.time} disabled={busy} onChange={(date, time) => setV({ date, time })} />
+      {dirty
+        ? <div className="mt-1 flex gap-2 text-xs">
+            <button className="font-medium text-brand-600 hover:underline" onClick={() => onSave(joinDeadline(v.date, v.time))}>Guardar fecha</button>
+            <button className="text-zinc-500 hover:underline" onClick={() => setV(server)}>Descartar</button>
+          </div>
+        : deadlineInfo(task.deadline)?.overdue && <p className="mt-1 text-xs text-red-600">Vencida</p>}
+    </div>
+  );
+}
+
+function Hours({ task, busy, onSave }: { task: TaskDetail; busy: boolean; onSave: (v: number) => Promise<unknown> }) {
+  const [v, setV] = useState(task.allocatedHours ? String(task.allocatedHours) : '');
+  useEffect(() => setV(task.allocatedHours ? String(task.allocatedHours) : ''), [task.allocatedHours]);
+  const save = () => { const n = Number(v || 0); if (n !== task.allocatedHours && n >= 0) onSave(n); };
+  const over = task.allocatedHours > 0 && task.effectiveHours > task.allocatedHours;
+  return (
+    <div className="col-span-2 sm:col-span-1">
+      <label className="label" htmlFor="tp-hours">Horas estimadas</label>
+      <input id="tp-hours" type="number" min="0" max="1000" step="0.25" className="input" placeholder="—" disabled={busy} value={v}
+        onChange={(e) => setV(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+      <p className={`mt-1 text-xs tabular-nums ${over ? 'text-red-600' : 'text-zinc-500'}`}>
+        {task.effectiveHours.toFixed(2)} h registradas{over && ' · excede lo estimado'}
+      </p>
+    </div>
+  );
+}
+
+const nowHHMM = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+/** Iniciar o detener el temporizador de Odoo para esta tarea. */
+function TimerSection({ taskId }: { taskId: number }) {
+  const { timer, minutes, start } = useTimer();
+  const [backdate, setBackdate] = useState(false);
+  const [at, setAt] = useState(nowHHMM);
+  const [busy, setBusy] = useState(false);
+
+  if (timer?.taskId === taskId) {
+    return (
+      <section className="rounded-lg border border-brand-500/50 bg-brand-50 p-3 dark:bg-brand-700/15">
+        <p className="mb-2 text-sm">
+          ⏱ Temporizador corriendo desde <b>{hhmm(timer.startedAt)}</b> · <span className="tabular-nums">{fmtMinutes(minutes)}</span>
+        </p>
+        <StopTimerForm />
+      </section>
+    );
+  }
+  if (timer) {
+    return <p className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-500 dark:bg-zinc-800/50">Hay un temporizador corriendo en <b>{timer.taskName}</b>; detenlo para iniciar uno aquí.</p>;
+  }
+  const future = backdate && at > nowHHMM();
+  return (
+    <section className="flex flex-wrap items-center gap-3 text-sm">
+      <button className="btn-ghost" disabled={busy || future} onClick={async () => {
+        setBusy(true);
+        await start(taskId, backdate ? todayAt(at) : undefined);
+        setBusy(false);
+      }}>{busy && <Spinner className="size-3" />} ⏱ Iniciar temporizador</button>
+      <label className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+        <input type="checkbox" className="accent-brand-600" checked={backdate} onChange={(e) => { setBackdate(e.target.checked); setAt(nowHHMM()); }} />
+        empecé a las
+        <input type="time" className="input w-28" disabled={!backdate} value={at} onChange={(e) => setAt(e.target.value)} aria-label="Hora de inicio" />
+      </label>
+      {future && <span className="text-xs text-red-600">No puede ser futura.</span>}
+    </section>
   );
 }
 
