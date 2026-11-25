@@ -349,7 +349,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             w.delegate = self
             w.setFrameAutosaveName("OdooRememberPanel")
             if !w.setFrameUsingName("OdooRememberPanel") { w.center() }
-            let web = WKWebView(frame: w.contentView!.bounds)
+            let conf = WKWebViewConfiguration()
+            conf.userContentController.add(self, name: "theme")   // el panel avisa el tema elegido
+            let web = WKWebView(frame: w.contentView!.bounds, configuration: conf)
             web.autoresizingMask = [.width, .height]
             web.uiDelegate = self
             web.navigationDelegate = self
@@ -508,6 +510,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 }
 
 // Abrir enlaces externos (p. ej. "Abrir en Odoo") en el navegador, no dentro del panel.
+extension AppDelegate: WKScriptMessageHandler {
+    /// Ajusta la barra de título de la ventana al tema elegido en el panel (Sistema/Claro/Oscuro).
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "theme", let theme = message.body as? String else { return }
+        switch theme {
+        case "light": panel?.appearance = NSAppearance(named: .aqua)
+        case "dark": panel?.appearance = NSAppearance(named: .darkAqua)
+        default: panel?.appearance = nil
+        }
+    }
+}
+
 extension AppDelegate: WKUIDelegate, WKNavigationDelegate {
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
