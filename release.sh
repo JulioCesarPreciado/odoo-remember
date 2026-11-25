@@ -105,7 +105,7 @@ git commit -m "📦 chore: bump version to $VERSION"
 git push origin main
 
 # ── 4. Tag ────────────────────────────────────────────────────────
-echo "🏷️   Tag $TAG…"
+echo "🏷️   Tag ${TAG}…"
 git tag -a "$TAG" -m "Version $VERSION"
 git push origin "$TAG"
 
