@@ -100,3 +100,16 @@ export interface ProjectBoard {
   groups: StageGroup[];
   total: number;
 }
+
+/** Cuenta de Odoo con la que la API hace todo (la del token en `.env`). */
+export interface Account {
+  uid: number;
+  name: string;
+  login: string;
+  company: string | null;
+  employee: { name: string; job: string | null; department: string | null } | null;
+  avatarUrl: string;            // ruta local que sirve la foto de Odoo
+  profileUrl: string;           // perfil en Odoo
+  odoo: { host: string; db: string; version: string | null };
+  verifiedAt: string;           // ISO, última vez que Odoo aceptó el token
+}

@@ -5,6 +5,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono, type Context } from 'hono';
 import { config } from './config.js';
 import { HttpError } from './odoo.js';
+import { account, accountAvatar } from './account.js';
 import * as attendance from './attendance.js';
 import * as location from './location.js';
 import * as tasks from './tasks.js';
@@ -37,6 +38,18 @@ const id = (c: Context, name = 'id') => {
 const body = async <T>(c: Context): Promise<T> => {
   try { return (await c.req.json()) as T; } catch { throw new HttpError('JSON inválido', 400); }
 };
+
+// --- Cuenta de Odoo (la del token en .env) ---
+app.get('/api/account', async (c) => c.json(await account({ fresh: c.req.query('fresh') === '1' })));
+app.get('/api/account/avatar', async (c) => {
+  const { bytes, type } = await accountAvatar();
+  return c.body(new Uint8Array(bytes), 200, {
+    'Content-Type': type,
+    'Cache-Control': 'private, max-age=86400',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",   // por si es SVG
+  });
+});
 
 // --- Asistencia ---
 app.get('/api/health', (c) => c.json({ ok: true }));

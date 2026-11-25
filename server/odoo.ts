@@ -52,6 +52,23 @@ class Odoo {
     return (this.uid = uid);
   }
 
+  /** Vuelve a autenticar (sin caché) para comprobar que el usuario y el token siguen siendo válidos. */
+  async verify(): Promise<number> {
+    const { db, user, token } = config.odoo;
+    const uid = await this.rpc<number | false>('common', 'authenticate', [db, user, token, {}]);
+    if (!uid) {
+      this.uid = undefined;
+      throw new HttpError('Odoo rechazó el usuario o el token configurados en .env', 502);
+    }
+    return (this.uid = uid);
+  }
+
+  /** Versión del servidor de Odoo (p. ej. "18.0+e"). */
+  async serverVersion(): Promise<string | null> {
+    const v = await this.rpc<{ server_version?: string }>('common', 'version', []).catch(() => null);
+    return v?.server_version ?? null;
+  }
+
   async call<T>(model: string, method: string, args: unknown[], kwargs: Kwargs = {}): Promise<T> {
     const uid = await this.login();
     const { db, token } = config.odoo;

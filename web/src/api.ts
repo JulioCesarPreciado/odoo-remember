@@ -1,4 +1,4 @@
-import type { ProjectBoard, ProjectSummary, Stage, Task, TaskDetail, TaskState, Today } from '../../server/types';
+import type { Account, ProjectBoard, ProjectSummary, Stage, Task, TaskDetail, TaskState, Today } from '../../server/types';
 
 export type * from '../../server/types';
 
@@ -14,6 +14,8 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
+  account: (fresh = false) => req<Account>('GET', `/api/account${fresh ? '?fresh=1' : ''}`),
+
   today: (fresh = false) => req<Today>('GET', `/api/attendance/today${fresh ? '?fresh=1' : ''}`),
   checkIn: () => req<Today>('POST', '/api/attendance/check-in'),
   checkOut: () => req<Today>('POST', '/api/attendance/check-out'),
