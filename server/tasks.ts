@@ -1,5 +1,6 @@
-import { HttpError, fromOdoo, odoo, ref } from './odoo.js';
-import type { ProjectBoard, ProjectSummary, Stage, StageGroup, Task, TaskDetail, TaskState } from './types.js';
+import { HttpError, fromOdoo, odoo, ref, toOdoo } from './odoo.js';
+import { assertCanStart, startTimer } from './timer.js';
+import type { ProjectBoard, ProjectSummary, Ref, Stage, StageGroup, Task, TaskDetail, TaskState } from './types.js';
 
 export const TASK_STATES: TaskState[] = ['01_in_progress', '02_changes_requested', '03_approved', '04_waiting_normal', '1_done', '1_canceled'];
 const OPEN: unknown[] = ['state', 'not in', ['1_done', '1_canceled']];
@@ -9,6 +10,24 @@ type RawTask = {
   id: number; name: string; project_id: unknown; stage_id: unknown; state: TaskState; priority: string;
   date_deadline: string | false; user_ids: number[]; tag_ids: number[]; allocated_hours: number; effective_hours: number;
 };
+
+// ---------- Fechas y textos ----------
+
+/** Minúsculas y sin acentos, para comparar nombres ("Documentación" = "documentacion"). */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+
+/**
+ * Fecha u hora que manda el cliente → formato UTC de Odoo.
+ * "YYYY-MM-DD" = medianoche local (como lo guarda la interfaz de Odoo); una fecha-hora sin zona se toma como hora local.
+ */
+export function parseWhen(value: string, field: string): Date {
+  const v = value.trim();
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+  if (Number.isNaN(d.getTime())) throw new HttpError(`${field}: fecha inválida "${value}" (usa YYYY-MM-DD o YYYY-MM-DDTHH:MM)`, 400);
+  return d;
+}
+
+const localDate = (d: Date) => d.toLocaleDateString('en-CA');
 
 async function normalize(rows: RawTask[]): Promise<Task[]> {
   const { uid } = await odoo.me();
@@ -23,7 +42,8 @@ async function normalize(rows: RawTask[]): Promise<Task[]> {
     stage: ref(r.stage_id),
     state: r.state,
     priority: r.priority === '1',
-    deadline: typeof r.date_deadline === 'string' ? r.date_deadline.slice(0, 10) : null,
+    deadline: r.date_deadline ? localDate(fromOdoo(r.date_deadline)!) : null,
+    deadlineAt: fromOdoo(r.date_deadline)?.toISOString() ?? null,
     assignees: r.user_ids.map((id) => ({ id, name: users.get(id) ?? `#${id}` })),
     tags: r.tag_ids.map((id) => tags.get(id) ?? ''),
     allocatedHours: r.allocated_hours,
@@ -78,7 +98,14 @@ async function countBy(domain: unknown[], field: string): Promise<Map<number | f
   return new Map(groups.map((g) => [Array.isArray(g[field]) ? (g[field] as [number])[0] : false, g.__count as number]));
 }
 
-export async function projects(): Promise<ProjectSummary[]> {
+/** Proyectos donde participo; `q` filtra por palabras sin importar acentos ni mayúsculas ("apidiv gdl"). */
+export async function projects(q?: string): Promise<ProjectSummary[]> {
+  const all = await allProjects();
+  const words = fold(q ?? '').split(/\s+/).filter(Boolean);
+  return words.length ? all.filter((p) => words.every((w) => fold(p.name).includes(w))) : all;
+}
+
+async function allProjects(): Promise<ProjectSummary[]> {
   const ids = await myProjectIds();
   if (!ids.length) return [];
   const { uid } = await odoo.me();
@@ -146,6 +173,55 @@ export async function board(projectId: number, opts: { mine?: boolean; q?: strin
   return { project, stages: stageList, groups, total: [...counts.values()].reduce((a, b) => a + b, 0) };
 }
 
+// ---------- Etiquetas ----------
+
+let tagsCache: { at: number; tags: Ref[] } | null = null;
+
+async function allTags(): Promise<Ref[]> {
+  if (tagsCache && Date.now() - tagsCache.at < 5 * 60_000) return tagsCache.tags;
+  const rows = await odoo.searchRead<{ id: number; name: string }>('project.tags', [], { fields: ['name'], order: 'name' });
+  tagsCache = { at: Date.now(), tags: rows.map((t) => ({ id: t.id, name: t.name })) };
+  return tagsCache.tags;
+}
+
+export async function findTags(q?: string): Promise<Ref[]> {
+  const tags = await allTags();
+  const f = fold(q ?? '');
+  return f ? tags.filter((t) => fold(t.name).includes(f)).slice(0, 50) : tags;
+}
+
+/**
+ * Nombres de etiqueta → ids. Coincide sin importar acentos ni mayúsculas.
+ * Las que no existen solo se crean con `create: true`; si no, error 422 con la lista, para que alguien lo confirme.
+ */
+async function resolveTags(names: string[], create = false): Promise<number[]> {
+  const tags = await allTags();
+  const wanted = [...new Map(names.map((n) => n.trim()).filter(Boolean).map((n) => [fold(n), n])).values()];
+  const ids: number[] = [];
+  const missing: string[] = [];
+  for (const name of wanted) {
+    const hit = tags.find((t) => fold(t.name) === fold(name));
+    if (hit) ids.push(hit.id);
+    else missing.push(name);
+  }
+  if (missing.length && !create) {
+    throw new HttpError(`No existen las etiquetas: ${missing.join(', ')}. Para crearlas envía createMissingTags: true.`, 422);
+  }
+  for (const name of missing) {
+    const [id] = await odoo.call<[number, string]>('project.tags', 'name_create', [name.charAt(0).toUpperCase() + name.slice(1)]);
+    ids.push(id);
+  }
+  if (missing.length) tagsCache = null;
+  return ids;
+}
+
+async function assertStage(projectId: number, stageId: number) {
+  const list = await stages(projectId);
+  if (!list.some((s) => s.id === stageId)) {
+    throw new HttpError(`La etapa ${stageId} no pertenece al proyecto. Etapas: ${list.map((s) => `${s.id} ${s.name}`).join(', ')}`, 422);
+  }
+}
+
 // ---------- Detalle y acciones ----------
 
 export async function task(id: number): Promise<TaskDetail> {
@@ -169,16 +245,60 @@ export async function task(id: number): Promise<TaskDetail> {
   };
 }
 
-export async function updateTask(id: number, patch: { stageId?: number; state?: TaskState; priority?: boolean; deadline?: string | null; name?: string }) {
+export interface TaskPatch {
+  stageId?: number;
+  state?: TaskState;
+  priority?: boolean;
+  /** "YYYY-MM-DD" (medianoche local) o fecha-hora ISO; null la quita. */
+  deadline?: string | null;
+  name?: string;
+  /** Reemplaza las etiquetas por estas (por nombre). */
+  tags?: string[];
+  createMissingTags?: boolean;
+  allocatedHours?: number;
+  /** Inicio planeado (fecha-hora). */
+  plannedStart?: string | null;
+}
+
+/** Valores de Odoo comunes a crear y editar. */
+async function taskVals(projectId: number, p: TaskPatch): Promise<Record<string, unknown>> {
   const vals: Record<string, unknown> = {};
-  if (patch.stageId !== undefined) vals.stage_id = patch.stageId;
-  if (patch.state !== undefined) {
-    if (!TASK_STATES.includes(patch.state)) throw new HttpError(`Estado inválido: ${patch.state}`, 400);
-    vals.state = patch.state;
+  if (p.stageId !== undefined) {
+    await assertStage(projectId, p.stageId);
+    vals.stage_id = p.stageId;
   }
-  if (patch.priority !== undefined) vals.priority = patch.priority ? '1' : '0';
-  if (patch.deadline !== undefined) vals.date_deadline = patch.deadline ? `${patch.deadline.slice(0, 10)} 00:00:00` : false;
-  if (patch.name !== undefined) vals.name = patch.name;
+  if (p.state !== undefined) {
+    if (!TASK_STATES.includes(p.state)) throw new HttpError(`Estado inválido: ${p.state}`, 400);
+    vals.state = p.state;
+  }
+  if (p.priority !== undefined) vals.priority = p.priority ? '1' : '0';
+  if (p.deadline !== undefined) vals.date_deadline = p.deadline ? toOdoo(parseWhen(p.deadline, 'deadline')) : false;
+  if (p.plannedStart !== undefined) vals.planned_date_begin = p.plannedStart ? toOdoo(parseWhen(p.plannedStart, 'plannedStart')) : false;
+  if (p.name !== undefined) {
+    if (!p.name.trim()) throw new HttpError('La tarea necesita un nombre', 400);
+    vals.name = p.name.trim();
+  }
+  if (p.allocatedHours !== undefined) {
+    if (!(p.allocatedHours >= 0 && p.allocatedHours <= 1000)) throw new HttpError('allocatedHours debe estar entre 0 y 1000', 400);
+    vals.allocated_hours = p.allocatedHours;
+  }
+  if (p.tags !== undefined && !(Array.isArray(p.tags) && p.tags.every((t) => typeof t === 'string'))) {
+    throw new HttpError('tags debe ser una lista de nombres', 400);
+  }
+  if (p.tags !== undefined) vals.tag_ids = [[6, 0, await resolveTags(p.tags, p.createMissingTags)]];
+  return vals;
+}
+
+async function projectOf(id: number): Promise<number> {
+  const [row] = await odoo.call<{ project_id: unknown }[]>('project.task', 'read', [[id]], { fields: ['project_id'] });
+  if (!row) throw new HttpError('Tarea no encontrada', 404);
+  const project = ref(row.project_id);
+  if (!project) throw new HttpError('La tarea no tiene proyecto', 422);
+  return project.id;
+}
+
+export async function updateTask(id: number, patch: TaskPatch) {
+  const vals = await taskVals(await projectOf(id), patch);
   if (!Object.keys(vals).length) throw new HttpError('Nada que actualizar', 400);
   await odoo.call('project.task', 'write', [[id], vals]);
   return task(id);
@@ -207,17 +327,30 @@ export async function comment(id: number, body: string) {
   return task(id);
 }
 
-export async function createTask(input: { projectId: number; name: string; description?: string; stageId?: number; deadline?: string; assignToMe?: boolean; priority?: boolean }) {
+export interface NewTask extends Omit<TaskPatch, 'state' | 'deadline' | 'plannedStart'> {
+  projectId: number;
+  name: string;
+  description?: string;
+  deadline?: string;
+  plannedStart?: string;
+  /** Por defecto true: asignada al usuario del token. */
+  assignToMe?: boolean;
+  /** "Ya empecé a las…": inicia el temporizador con esa hora de inicio. */
+  startedAt?: string;
+}
+
+export async function createTask(input: NewTask) {
   if (!input.name?.trim()) throw new HttpError('La tarea necesita un nombre', 400);
+  if (!(await projects()).some((p) => p.id === input.projectId)) throw new HttpError('Proyecto no encontrado o no participas en él', 404);
   const { uid } = await odoo.me();
-  const vals: Record<string, unknown> = { project_id: input.projectId, name: input.name.trim() };
-  if (input.description) vals.description = input.description.split('\n').map((l) => `<p>${escapeHtml(l)}</p>`).join('');
-  if (input.stageId) vals.stage_id = input.stageId;
-  if (input.deadline) vals.date_deadline = `${input.deadline.slice(0, 10)} 00:00:00`;
-  if (input.priority) vals.priority = '1';
-  vals.user_ids = input.assignToMe === false ? [[6, 0, []]] : [[6, 0, [uid]]];
+  const { projectId, description, assignToMe, startedAt, ...rest } = input;
+  if (startedAt) await assertCanStart(startedAt);               // validar antes de crear nada (tarea o etiquetas)
+  const vals: Record<string, unknown> = { project_id: projectId, ...(await taskVals(projectId, rest)) };
+  if (description) vals.description = description.split('\n').map((l) => `<p>${escapeHtml(l)}</p>`).join('');
+  vals.user_ids = assignToMe === false ? [[6, 0, []]] : [[6, 0, [uid]]];
   const id = await odoo.call<number>('project.task', 'create', [vals]);
   projectsCache = null;
+  if (startedAt) await startTimer(id, startedAt);
   return task(id);
 }
 

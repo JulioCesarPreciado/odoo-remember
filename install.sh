@@ -119,4 +119,5 @@ launchctl bootstrap "$UID_GUI" "$AGENTS/$BUNDLE_ID.plist"
 for _ in {1..20}; do curl -sf "$API_URL/api/health" >/dev/null && break; sleep 0.5; done
 echo "✓ Listo."
 echo "  Panel:  $API_URL  (o desde el icono de la barra de menú → Abrir panel)"
+echo "  MCP:    claude mcp add --scope user odoo-remember -- node \"$ROOT/dist/server/mcp.js\""
 echo "  Estado: $(curl -s "$API_URL/api/attendance/today" | "$NODE" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).summary)}catch{console.log(s)}})')"

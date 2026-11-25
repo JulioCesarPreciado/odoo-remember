@@ -64,7 +64,8 @@ export interface Task {
   stage: Ref | null;
   state: TaskState;
   priority: boolean;
-  deadline: string | null;      // YYYY-MM-DD
+  deadline: string | null;      // YYYY-MM-DD local
+  deadlineAt: string | null;    // ISO (Odoo guarda fecha y hora)
   assignees: Ref[];
   tags: string[];
   allocatedHours: number;
@@ -112,4 +113,15 @@ export interface Account {
   profileUrl: string;           // perfil en Odoo
   odoo: { host: string; db: string; version: string | null };
   verifiedAt: string;           // ISO, última vez que Odoo aceptó el token
+}
+
+/** Temporizador de Odoo corriendo en una tarea. */
+export interface TimerInfo {
+  taskId: number;
+  taskName: string;
+  project: Ref | null;
+  startedAt: string;            // ISO
+  paused: boolean;
+  elapsedMinutes: number;
+  url: string;
 }

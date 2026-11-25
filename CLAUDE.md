@@ -7,6 +7,8 @@ sin entrar a Odoo. Tres piezas:
   que habla con Odoo (JSON-RPC); concentra la lógica de asistencia, comida, ubicación
   y tareas. Tipos compartidos con la interfaz en `server/types.ts`.
 - `web/` — panel en React 19 + Tailwind 4 (Vite), servido por la API.
+- `server/mcp.ts` — servidor MCP (stdio) para sesiones de Claude; solo llama a la API
+  local (nunca a Odoo), así que hereda sus validaciones.
 - `macos/main.swift` — app de barra de menú (AppKit, CoreLocation, UserNotifications);
   no habla con Odoo, solo con la API local.
 
