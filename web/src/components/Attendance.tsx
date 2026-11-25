@@ -128,8 +128,9 @@ export function Attendance() {
           </button>
         )}
         {t.status === 'working' && (
-          <button className="btn-ghost" disabled={!!busy || noLoc || !t.actions.lunchStart} title={t.lunch.reason ?? undefined}
-            onClick={() => act('lunch', api.lunchStart, (r) => `Buen provecho. Regreso a las ${hhmm(r.lunch.returnDueAt)}`)}>
+          <button className="btn-ghost" disabled={!!busy || noLoc || !t.actions.lunchStart} title={t.lunch.reason ?? t.lunch.notice ?? undefined}
+            onClick={() => (!t.lunch.notice || confirm(`${t.lunch.notice}\n¿Registrar tu salida a comer de todos modos?`))
+              && act('lunch', api.lunchStart, (r) => `Buen provecho. Regreso a las ${hhmm(r.lunch.returnDueAt)}`)}>
             {busy === 'lunch' && <Spinner className="size-3" />} Salir a comer
           </button>
         )}
@@ -139,8 +140,8 @@ export function Attendance() {
             {busy === 'out' && <Spinner className="size-3" />} Registrar salida
           </button>
         )}
-        {t.status === 'working' && !t.actions.lunchStart && t.lunch.reason && !t.lunch.start && (
-          <span className="self-center text-xs text-zinc-500">{t.lunch.reason}</span>
+        {t.status === 'working' && !t.lunch.start && (t.lunch.reason ?? t.lunch.notice) && (
+          <span className="self-center text-xs text-zinc-500">{t.lunch.reason ?? t.lunch.notice}</span>
         )}
       </div>
     </section>
