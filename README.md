@@ -4,7 +4,7 @@ Recordatorios de asistencia en Odoo para macOS: una app de barra de menú te avi
 cuándo registrar entrada, comida y salida (con ubicación), y un panel local te deja
 ver y actualizar tus tareas sin entrar a Odoo.
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/JulioCesarPreciado/odoo-remember/releases) [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE) [![PGM](https://img.shields.io/badge/Powered%20by-PGM-blue.svg)](https://perspective.com.mx)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/JulioCesarPreciado/odoo-remember/releases) [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE) [![PGM](https://img.shields.io/badge/Powered%20by-PGM-blue.svg)](https://perspective.com.mx)
 
 ---
 
