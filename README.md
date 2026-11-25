@@ -148,18 +148,50 @@ Escucha solo en `127.0.0.1`, rechaza otros `Host`/`Origin` y exige `Content-Type
 | POST | `/api/attendance/check-in` · `check-out` | Entrada / salida |
 | POST | `/api/attendance/lunch/start` · `lunch/end` | Salir a comer / regresar |
 | GET | `/api/tasks/mine` | Mis tareas abiertas |
-| GET | `/api/projects` | Proyectos donde participo (con conteos) |
+| GET | `/api/projects?q=` | Proyectos donde participo (con conteos); `q` busca por palabras sin acentos ni mayúsculas |
+| GET | `/api/tags?q=` | Etiquetas de tareas |
 | GET | `/api/projects/:id/stages` | Etapas del proyecto |
 | GET | `/api/projects/:id/tasks?mine=1&q=&stage=&offset=&limit=` | Tareas abiertas agrupadas por etapa |
-| POST | `/api/tasks` | Crear tarea `{projectId, name, description?, stageId?, deadline?, assignToMe?, priority?}` |
+| POST | `/api/tasks` | Crear tarea `{projectId, name, description?, stageId?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, assignToMe?, priority?, startedAt?}` |
 | GET | `/api/tasks/:id` | Detalle con horas y comentarios |
-| PATCH | `/api/tasks/:id` | `{stageId?, state?, priority?, deadline?, name?}` |
+| PATCH | `/api/tasks/:id` | `{stageId?, state?, priority?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, name?}` |
 | POST | `/api/tasks/:id/timesheets` | `{hours, description, date?}` |
 | POST | `/api/tasks/:id/comments` | `{body}` |
+| GET | `/api/timer` | Temporizador de tareas corriendo, o `null` |
+| POST | `/api/tasks/:id/timer/start` | Iniciar temporizador `{startedAt?}` (409 si ya hay otro) |
+| POST | `/api/timer/stop` | Detener y registrar el tiempo como horas `{description?}` |
+
+Reglas al crear o editar tareas:
+
+- **Fechas:** `"YYYY-MM-DD"` es medianoche local (igual que la interfaz de Odoo); `"YYYY-MM-DDTHH:MM"` sin zona es hora local.
+- **Etiquetas:** van por nombre y coinciden sin importar acentos ni mayúsculas. Si alguna no existe responde 422, salvo que se envíe `createMissingTags: true`.
+- **Etapa:** se valida que pertenezca al proyecto.
+- **`startedAt`** ("ya empecé a las 10:35") inicia el temporizador con esa hora (máximo 24 h atrás). Si ya corre otro temporizador responde 409 antes de crear nada.
 
 ```bash
 curl -X POST -H 'Content-Type: application/json' http://127.0.0.1:8787/api/attendance/check-in
 ```
+
+---
+
+## 🤖 MCP para Claude
+
+`dist/server/mcp.js` es un servidor MCP (stdio) para que las sesiones de Claude consulten y actualicen Odoo con tu cuenta. No habla con Odoo directamente: llama a la API local, así que aplica las mismas validaciones y no necesita el `.env`.
+
+```bash
+pnpm build
+claude mcp add --scope user odoo-remember -- node "$PWD/dist/server/mcp.js"
+```
+
+| Lectura | Escritura |
+| ------- | --------- |
+| `whoami`, `attendance_today`, `find_projects`, `list_stages`, `find_tags`, `my_tasks`, `project_tasks`, `get_task`, `current_timer` | `create_task`, `update_task`, `log_time`, `comment_task`, `start_timer`, `stop_timer` |
+
+- **Permisos:** Claude Code pide permiso antes de usar cada herramienta. Las de lectura se pueden permitir siempre con `/permissions`.
+- **Instrucciones:** el servidor le indica a Claude que resuelva el proyecto y la etapa con `find_projects` y `list_stages`, y que pregunte si hay ambigüedad. Tampoco debe crear etiquetas que el usuario no haya pedido.
+- **Otra API:** para apuntar a otra dirección usa la variable `ODOO_REMEMBER_API` (por defecto `http://127.0.0.1:8787`).
+
+Ejemplo: *"En APIDIV GDL crea la tarea «Crear manual de usuario» en En proceso, asignada a mí, con etiquetas manual y documentación, entrega hoy, 3 h estimadas; la empecé a las 10:35"*.
 
 ---
 

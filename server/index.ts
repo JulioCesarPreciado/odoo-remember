@@ -9,6 +9,7 @@ import { account, accountAvatar } from './account.js';
 import * as attendance from './attendance.js';
 import * as location from './location.js';
 import * as tasks from './tasks.js';
+import * as timer from './timer.js';
 
 const app = new Hono();
 
@@ -63,7 +64,8 @@ app.post('/api/attendance/lunch/end', async (c) => c.json(await attendance.lunch
 
 // --- Tareas y proyectos ---
 app.get('/api/tasks/mine', async (c) => c.json(await tasks.myTasks()));
-app.get('/api/projects', async (c) => c.json(await tasks.projects()));
+app.get('/api/projects', async (c) => c.json(await tasks.projects(c.req.query('q'))));
+app.get('/api/tags', async (c) => c.json(await tasks.findTags(c.req.query('q'))));
 app.get('/api/projects/:id/stages', async (c) => c.json(await tasks.stages(id(c))));
 app.get('/api/stages', async (c) => {
   const ids = (c.req.query('projects') ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
@@ -86,6 +88,15 @@ app.post('/api/tasks/:id/timesheets', async (c) => c.json(await tasks.logTime(id
 app.post('/api/tasks/:id/comments', async (c) => {
   const { body: text } = await body<{ body: string }>(c);
   return c.json(await tasks.comment(id(c), text ?? ''));
+});
+app.get('/api/timer', async (c) => c.json(await timer.currentTimer()));
+app.post('/api/tasks/:id/timer/start', async (c) => {
+  const { startedAt } = await body<{ startedAt?: string }>(c);
+  return c.json(await timer.startTimer(id(c), startedAt));
+});
+app.post('/api/timer/stop', async (c) => {
+  const { description } = await body<{ description?: string }>(c);
+  return c.json(await timer.stopTimer(description));
 });
 app.all('/api/*', (c) => c.json({ error: 'Ruta no encontrada' }, 404));
 
