@@ -9,7 +9,11 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
 }
 
-:root { color-scheme: light dark; }
+/* El tema lo decide data-theme en <html> (Sistema/Claro/Oscuro), no solo la preferencia del sistema. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+:root { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 body { @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100; }
 
 @utility card { @apply rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900; }

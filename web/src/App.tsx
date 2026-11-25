@@ -5,6 +5,7 @@ import { MyTasks } from './components/MyTasks';
 import { Projects } from './components/Projects';
 import { TaskPanel } from './components/TaskPanel';
 import { TaskActionsProvider } from './taskActions';
+import { ThemeToggle } from './theme';
 import { ToastProvider, useLoad } from './ui';
 
 type View = 'mine' | 'projects';
@@ -44,6 +45,7 @@ export function App() {
             <h1 className="text-lg font-semibold leading-tight">Odoo Asistencia</h1>
             <p className="text-xs text-zinc-500">{capitalize(new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
           </div>
+          <div className="ml-auto"><ThemeToggle /></div>
         </header>
 
         <Attendance />
