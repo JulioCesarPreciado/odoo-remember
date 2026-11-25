@@ -1,6 +1,6 @@
 {
   "name": "odoo-remember",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Recordatorios de asistencia en Odoo para macOS: app de barra de menú, API local y panel de tareas.",
   "private": true,
   "license": "MIT",
