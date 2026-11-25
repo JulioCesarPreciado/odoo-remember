@@ -23,6 +23,7 @@ export const api = {
   myTasks: () => req<Task[]>('GET', '/api/tasks/mine'),
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
   stages: (projectId: number) => req<Stage[]>('GET', `/api/projects/${projectId}/stages`),
+  stagesFor: (projectIds: number[]) => req<Record<number, Stage[]>>('GET', `/api/stages?projects=${projectIds.join(',')}`),
   board: (projectId: number, p: { mine?: boolean; q?: string; stage?: number | 'none'; offset?: number; limit?: number } = {}) => {
     const qs = new URLSearchParams();
     if (p.mine) qs.set('mine', '1');

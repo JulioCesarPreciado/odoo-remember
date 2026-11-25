@@ -107,7 +107,7 @@ function StageSection({ group, board, filters, onOpen, activeId }: {
       </button>
       {open && (
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {tasks.map((t) => <TaskRow key={t.id} task={t} onOpen={onOpen} showStage={false} active={t.id === activeId} />)}
+          {tasks.map((t) => <TaskRow key={t.id} task={t} onOpen={onOpen} active={t.id === activeId} />)}
           {tasks.length < group.count && (
             <div className="px-4 py-2">
               <button className="text-sm text-brand-600 hover:underline dark:text-brand-500" onClick={more} disabled={loadingMore}>

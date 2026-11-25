@@ -4,6 +4,7 @@ import { Attendance } from './components/Attendance';
 import { MyTasks } from './components/MyTasks';
 import { Projects } from './components/Projects';
 import { TaskPanel } from './components/TaskPanel';
+import { TaskActionsProvider } from './taskActions';
 import { ToastProvider, useLoad } from './ui';
 
 type View = 'mine' | 'projects';
@@ -35,6 +36,7 @@ export function App() {
 
   return (
     <ToastProvider>
+    <TaskActionsProvider onChanged={changed}>
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-5">
         <header className="flex items-center gap-3">
           <img src="/logo.png" alt="" className="size-9" />
@@ -61,7 +63,8 @@ export function App() {
           : <Projects onOpen={open} activeId={openId ?? undefined} version={version} onChanged={changed} />}
       </div>
 
-      {openId !== null && <TaskPanel taskId={openId} onClose={close} onChanged={changed} />}
+      {openId !== null && <TaskPanel taskId={openId} version={version} onClose={close} onChanged={changed} />}
+    </TaskActionsProvider>
     </ToastProvider>
   );
 }
