@@ -1,6 +1,6 @@
 import { HttpError, fromOdoo, odoo, ref, toOdoo } from './odoo.js';
 import { assertCanStart, startTimer } from './timer.js';
-import type { ProjectBoard, ProjectSummary, Ref, Stage, StageGroup, Task, TaskDetail, TaskState } from './types.js';
+import type { NewTask, ProjectBoard, ProjectSummary, Ref, Stage, StageGroup, Task, TaskDetail, TaskPatch, TaskState } from './types.js';
 
 export const TASK_STATES: TaskState[] = ['01_in_progress', '02_changes_requested', '03_approved', '04_waiting_normal', '1_done', '1_canceled'];
 const OPEN: unknown[] = ['state', 'not in', ['1_done', '1_canceled']];
@@ -245,21 +245,6 @@ export async function task(id: number): Promise<TaskDetail> {
   };
 }
 
-export interface TaskPatch {
-  stageId?: number;
-  state?: TaskState;
-  priority?: boolean;
-  /** "YYYY-MM-DD" (medianoche local) o fecha-hora ISO; null la quita. */
-  deadline?: string | null;
-  name?: string;
-  /** Reemplaza las etiquetas por estas (por nombre). */
-  tags?: string[];
-  createMissingTags?: boolean;
-  allocatedHours?: number;
-  /** Inicio planeado (fecha-hora). */
-  plannedStart?: string | null;
-}
-
 /** Valores de Odoo comunes a crear y editar. */
 async function taskVals(projectId: number, p: TaskPatch): Promise<Record<string, unknown>> {
   const vals: Record<string, unknown> = {};
@@ -325,18 +310,6 @@ export async function comment(id: number, body: string) {
   if (!body.trim()) throw new HttpError('El comentario está vacío', 400);
   await odoo.call('project.task', 'message_post', [[id]], { body, message_type: 'comment', subtype_xmlid: 'mail.mt_comment' });
   return task(id);
-}
-
-export interface NewTask extends Omit<TaskPatch, 'state' | 'deadline' | 'plannedStart'> {
-  projectId: number;
-  name: string;
-  description?: string;
-  deadline?: string;
-  plannedStart?: string;
-  /** Por defecto true: asignada al usuario del token. */
-  assignToMe?: boolean;
-  /** "Ya empecé a las…": inicia el temporizador con esa hora de inicio. */
-  startedAt?: string;
 }
 
 export async function createTask(input: NewTask) {

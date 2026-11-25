@@ -130,7 +130,9 @@ Cada entrada y salida (incluida la comida) se guarda en Odoo con la ubicación: 
 - **Asistencia de hoy:** entrada, comida, salida, tiempo trabajado y ubicación de cada registro; botones para registrar lo que falte.
 - **Mis tareas pendientes:** asignadas a ti y abiertas, por proyecto o por fecha límite.
 - **Tareas por proyecto:** proyectos donde tienes tareas, eres seguidor o responsable; tareas abiertas agrupadas por etapa (paginadas), filtro "solo mías", búsqueda y nueva tarea.
-- **Detalle de tarea:** cambiar etapa, estado, prioridad y fecha límite; marcar como hecha; registrar horas; comentar en el chatter.
+- **Temporizador:** barra con la tarea que tiene el temporizador de Odoo corriendo y el tiempo transcurrido; al detenerlo pide qué hiciste y registra las horas.
+- **Nueva tarea:** etapa, horas estimadas, fecha límite con hora opcional, etiquetas con autocompletado (crear una nueva requiere elegir «Crear etiqueta») y «Ya empecé a las…», que inicia el temporizador desde esa hora.
+- **Detalle de tarea:** cambiar etapa, estado, prioridad, fecha límite (con hora), horas estimadas y etiquetas (crear una nueva pide confirmación); iniciar o detener el temporizador; marcar como hecha; registrar horas; comentar en el chatter.
 
 ---
 
