@@ -102,6 +102,19 @@ export async function stages(projectId: number): Promise<Stage[]> {
   return rows.map((s) => ({ id: s.id, name: s.name, fold: s.fold }));
 }
 
+/** Etapas de varios proyectos en una sola consulta: { [projectId]: Stage[] }. */
+export async function stagesFor(projectIds: number[]): Promise<Record<number, Stage[]>> {
+  const ids = [...new Set(projectIds)].slice(0, 100);
+  const out: Record<number, Stage[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  if (!ids.length) return out;
+  const rows = await odoo.searchRead<{ id: number; name: string; fold: boolean; project_ids: number[] }>('project.task.type',
+    [['project_ids', 'in', ids]], { fields: ['name', 'fold', 'project_ids'], order: 'sequence, id' });
+  for (const s of rows) {
+    for (const pid of s.project_ids) out[pid]?.push({ id: s.id, name: s.name, fold: s.fold });
+  }
+  return out;
+}
+
 /** Tareas abiertas de un proyecto agrupadas por etapa; `limit` tareas por etapa (paginadas con `offset`). */
 export async function board(projectId: number, opts: { mine?: boolean; q?: string; stageId?: number | null; limit?: number; offset?: number }): Promise<ProjectBoard> {
   const { uid } = await odoo.me();

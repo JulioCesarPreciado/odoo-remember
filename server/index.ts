@@ -52,6 +52,10 @@ app.post('/api/attendance/lunch/end', async (c) => c.json(await attendance.lunch
 app.get('/api/tasks/mine', async (c) => c.json(await tasks.myTasks()));
 app.get('/api/projects', async (c) => c.json(await tasks.projects()));
 app.get('/api/projects/:id/stages', async (c) => c.json(await tasks.stages(id(c))));
+app.get('/api/stages', async (c) => {
+  const ids = (c.req.query('projects') ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  return c.json(await tasks.stagesFor(ids));
+});
 app.get('/api/projects/:id/tasks', async (c) => {
   const q = c.req.query();
   return c.json(await tasks.board(id(c), {

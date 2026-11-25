@@ -4,8 +4,9 @@ import { Empty, STATE_LABEL, Spinner, Star, deadlineInfo, useAction, useLoad } f
 
 const STATES = Object.keys(STATE_LABEL) as TaskState[];
 
-export function TaskPanel({ taskId, onClose, onChanged }: { taskId: number; onClose: () => void; onChanged: () => void }) {
-  const { data: t, setData, error, loading } = useLoad(() => api.task(taskId), [taskId]);
+export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: number; version: number; onClose: () => void; onChanged: () => void }) {
+  // `version` cambia cuando algo se edita desde la lista: recargar para no mostrar datos viejos.
+  const { data: t, setData, error, loading } = useLoad(() => api.task(taskId), [taskId, version]);
   const [stages, setStages] = useState<Stage[]>([]);
   const { busy, run } = useAction();
 

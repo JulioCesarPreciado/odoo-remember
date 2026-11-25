@@ -26,7 +26,7 @@ export const STATE_LABEL: Record<TaskState, string> = {
   '1_canceled': 'Cancelada',
 };
 
-const STATE_CLASS: Record<TaskState, string> = {
+export const STATE_CLASS: Record<TaskState, string> = {
   '01_in_progress': 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
   '02_changes_requested': 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   '03_approved': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',

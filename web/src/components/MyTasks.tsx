@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Task } from '../api';
+import { useTaskActions } from '../taskActions';
 import { Empty, Spinner } from '../ui';
 import { TaskRow } from './TaskRow';
 
@@ -10,6 +11,12 @@ export function MyTasks({ tasks, loading, error, reload, onOpen, activeId }: {
 }) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('project');
+
+  // Precargar en una sola petición las etapas de todos los proyectos de la lista.
+  const { ensureStages } = useTaskActions();
+  useEffect(() => {
+    if (tasks) ensureStages(tasks.flatMap((t) => (t.project ? [t.project.id] : [])));
+  }, [tasks, ensureStages]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
