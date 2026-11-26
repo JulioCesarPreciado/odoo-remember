@@ -67,6 +67,7 @@ app.post('/api/attendance/lunch/end', async (c) => c.json(await attendance.lunch
 app.get('/api/tasks/mine', async (c) => c.json(await tasks.myTasks()));
 app.get('/api/projects', async (c) => c.json(await tasks.projects(c.req.query('q'))));
 app.get('/api/tags', async (c) => c.json(await tasks.findTags(c.req.query('q'))));
+app.get('/api/users', async (c) => c.json(await tasks.findUsers(c.req.query('q'))));
 app.get('/api/estimate', (c) => {
   const { start, deadline, hours } = tasks.plannedDates({ deadline: c.req.query('deadline'), startedAt: c.req.query('start') });
   return c.json({ start: start?.toISOString() ?? null, deadline: deadline?.toISOString() ?? null, hours } satisfies Estimate);

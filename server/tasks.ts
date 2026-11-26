@@ -179,6 +179,34 @@ export async function board(projectId: number, opts: { mine?: boolean; q?: strin
 
 let tagsCache: { at: number; tags: Ref[] } | null = null;
 
+// ---------- Usuarios (para asignar tareas) ----------
+
+let usersCache: { at: number; users: Ref[] } | null = null;
+
+/** Usuarios internos activos (sin portal ni públicos), en caché 5 min. */
+async function allUsers(): Promise<Ref[]> {
+  if (usersCache && Date.now() - usersCache.at < 5 * 60_000) return usersCache.users;
+  const rows = await odoo.searchRead<{ id: number; name: string }>('res.users', [['share', '=', false]], { fields: ['name'], order: 'name' });
+  usersCache = { at: Date.now(), users: rows.map((u) => ({ id: u.id, name: u.name })) };
+  return usersCache.users;
+}
+
+/** Busca por palabras sin importar acentos: "ana lopez" encuentra "Ana María López Ruiz". */
+export async function findUsers(q?: string): Promise<Ref[]> {
+  const users = await allUsers();
+  const words = fold(q ?? '').split(/\s+/).filter(Boolean);
+  return words.length ? users.filter((u) => words.every((w) => fold(u.name).includes(w))).slice(0, 50) : users;
+}
+
+/** Valida que los ids sean usuarios internos activos; 422 con los que no. */
+async function checkUsers(ids: unknown): Promise<number[]> {
+  if (!Array.isArray(ids) || !ids.every((i) => Number.isInteger(i) && i > 0)) throw new HttpError('userIds debe ser una lista de ids de usuario', 400);
+  const known = new Set((await allUsers()).map((u) => u.id));
+  const unknown = ids.filter((i) => !known.has(i));
+  if (unknown.length) throw new HttpError(`No son usuarios internos activos: ${unknown.join(', ')}. Búscalos por nombre (find_users o GET /api/users?q=)`, 422);
+  return [...new Set(ids as number[])];
+}
+
 async function allTags(): Promise<Ref[]> {
   if (tagsCache && Date.now() - tagsCache.at < 5 * 60_000) return tagsCache.tags;
   const rows = await odoo.searchRead<{ id: number; name: string }>('project.tags', [], { fields: ['name'], order: 'name' });
@@ -272,6 +300,7 @@ async function taskVals(projectId: number, p: TaskPatch): Promise<Record<string,
   if (p.tags !== undefined && !(Array.isArray(p.tags) && p.tags.every((t) => typeof t === 'string'))) {
     throw new HttpError('tags debe ser una lista de nombres', 400);
   }
+  if (p.userIds !== undefined) vals.user_ids = [[6, 0, await checkUsers(p.userIds)]];   // antes de crear etiquetas
   if (p.tags !== undefined) vals.tag_ids = [[6, 0, await resolveTags(p.tags, p.createMissingTags)]];
   return vals;
 }
@@ -336,14 +365,15 @@ export async function createTask(input: NewTask) {
   if (!input.name?.trim()) throw new HttpError('La tarea necesita un nombre', 400);
   if (!(await projects()).some((p) => p.id === input.projectId)) throw new HttpError('Proyecto no encontrado o no participas en él', 404);
   const { uid } = await odoo.me();
-  const { projectId, description, assignToMe, startedAt, ...rest } = input;
+  const { projectId, description, assignToMe, startedAt, userIds, ...rest } = input;
   if (startedAt) await assertCanStart(startedAt);               // validar antes de crear nada (tarea o etiquetas)
+  const others = userIds === undefined ? [] : await checkUsers(userIds);
   const plan = plannedDates({ deadline: rest.deadline, plannedStart: rest.plannedStart, startedAt });
   rest.plannedStart = plan.start?.toISOString();
   if (rest.allocatedHours === undefined && plan.hours) rest.allocatedHours = plan.hours;
   const vals: Record<string, unknown> = { project_id: projectId, ...(await taskVals(projectId, rest)) };
   if (description) vals.description = description.split('\n').map((l) => `<p>${escapeHtml(l)}</p>`).join('');
-  vals.user_ids = assignToMe === false ? [[6, 0, []]] : [[6, 0, [uid]]];
+  vals.user_ids = [[6, 0, [...new Set([...(assignToMe === false ? [] : [uid]), ...others])]]];
   const id = await odoo.call<number>('project.task', 'create', [vals]);
   projectsCache = null;
   if (startedAt) await startTimer(id, startedAt);

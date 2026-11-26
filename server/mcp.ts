@@ -40,8 +40,8 @@ const qs = (p: Record<string, string | number | boolean | undefined>) => {
 /** Versión compacta de una tarea para no gastar contexto. */
 const brief = (t: Task) => ({
   id: t.id, name: t.name, project: t.project?.name ?? null, stage: t.stage?.name ?? null, state: t.state,
-  deadline: t.deadline, priority: t.priority || undefined, tags: t.tags.length ? t.tags : undefined,
-  assignees: t.assignees.map((a) => a.name), allocatedHours: t.allocatedHours || undefined, effectiveHours: t.effectiveHours || undefined, url: t.url,
+  deadline: t.deadlineAt ? new Date(t.deadlineAt).toLocaleString('sv-SE').slice(0, 16) : null, priority: t.priority || undefined, tags: t.tags.length ? t.tags : undefined,
+  assignees: t.assignees, allocatedHours: t.allocatedHours || undefined, effectiveHours: t.effectiveHours || undefined, url: t.url,
 });
 const detail = (t: TaskDetail) => ({ ...brief(t), description: t.description || undefined, timesheets: t.timesheets.slice(0, 10), messages: t.messages.slice(0, 5) });
 
@@ -68,6 +68,7 @@ const server = new McpServer(
       'Reglas:',
       '- Resuelve nombres antes de escribir: usa find_projects y list_stages para obtener ids. Si hay más de un proyecto o etapa',
       '  que pueda coincidir con lo que pidió el usuario, pregúntale cuál; no adivines.',
+      '- Personas: resuelve nombres con find_users. Si hay más de una coincidencia, pregunta cuál; no adivines.',
       '- Las etiquetas se pasan por nombre. Solo usa createMissingTags: true si el usuario pidió crear las que no existan.',
       '- Fechas sin zona = hora local del usuario. "Lo empecé a las 10:35" → startedAt (inicia el temporizador con esa hora).',
       '- Si ya hay un temporizador corriendo, la API lo rechaza: avisa al usuario y pregunta antes de detenerlo con stop_timer.',
@@ -119,6 +120,13 @@ server.registerTool('find_tags', {
   inputSchema: { query: z.string().optional() },
   annotations: READ,
 }, ({ query }) => run(() => api<Ref[]>('GET', `/api/tags${qs({ q: query })}`))());
+
+server.registerTool('find_users', {
+  title: 'Buscar usuarios',
+  description: 'Usuarios internos activos de Odoo cuyo nombre contiene todas las palabras de `query` (sin importar acentos), para asignar tareas.',
+  inputSchema: { query: z.string().optional() },
+  annotations: READ,
+}, ({ query }) => run(() => api<Ref[]>('GET', `/api/users${qs({ q: query })}`))());
 
 server.registerTool('my_tasks', {
   title: 'Mis tareas abiertas',
@@ -176,6 +184,7 @@ server.registerTool('create_task', {
     name: z.string().min(1),
     description: z.string().optional(),
     assignToMe: z.boolean().optional().describe('Por defecto true'),
+    userIds: z.array(z.number().int().positive()).optional().describe('Otras personas a asignar además del usuario (ids de find_users)'),
     startedAt: when.optional().describe('"Ya empecé a las…": inicia el temporizador con esa hora (máx. 24 h atrás)'),
     ...taskFields,
   },
@@ -184,9 +193,11 @@ server.registerTool('create_task', {
 
 server.registerTool('update_task', {
   title: 'Actualizar tarea',
-  description: 'Cambia etapa, estado, nombre, fecha límite, horas estimadas, etiquetas o prioridad de una tarea. Solo se cambian los campos enviados.',
+  description: 'Cambia etapa, estado, nombre, fecha límite, horas estimadas, etiquetas, asignados o prioridad de una tarea. Solo se cambian los campos enviados.',
   inputSchema: {
     taskId: z.number().int().positive(),
+    userIds: z.array(z.number().int().positive()).optional()
+      .describe('Reemplaza a TODOS los asignados: incluye a los actuales que deban seguir (ver get_task). Ids de find_users'),
     name: z.string().min(1).optional(),
     state: z.enum(STATES).optional().describe('01_in_progress, 02_changes_requested, 03_approved, 04_waiting_normal, 1_done (hecha), 1_canceled'),
     ...taskFields,

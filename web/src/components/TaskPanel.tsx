@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, type Stage, type TaskDetail, type TaskState } from '../api';
+import { api, type Ref, type Stage, type TaskDetail, type TaskState } from '../api';
 import { fmtMinutes, todayAt, useTimer } from '../timer';
 import { Empty, STATE_LABEL, Spinner, Star, deadlineInfo, hhmm, useAction, useLoad } from '../ui';
-import { DeadlineInput, TagPicker, forgetTags, joinDeadline, splitDeadline, tagsPayload, type PickedTag } from './TaskFields';
+import { DeadlineInput, TagPicker, UserPicker, forgetTags, joinDeadline, myUid, splitDeadline, tagsPayload, type PickedTag } from './TaskFields';
 import { StopTimerForm } from './TimerBar';
 
 const STATES = Object.keys(STATE_LABEL) as TaskState[];
@@ -78,6 +78,17 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
                     if (await apply('tags', () => api.updateTask(t.id, tagsPayload(tags)), 'Etiquetas actualizadas') && tags.some((x) => x.isNew)) forgetTags();
                   }} />
               </div>
+              <div className="col-span-2">
+                <label className="label" htmlFor="tp-users">Asignada a</label>
+                <UserPicker id="tp-users" disabled={!!busy} value={t.assignees} placeholder="Nadie; buscar persona…"
+                  onChange={async (users: Ref[]) => {
+                    // Se guarda al instante; quitarse a uno mismo saca la tarea de "Mis tareas", así que se confirma.
+                    const me = await myUid().catch(() => null);
+                    if (me && t.assignees.some((u) => u.id === me) && !users.some((u) => u.id === me)
+                      && !window.confirm('¿Quitarte de esta tarea? Dejará de aparecer en tus tareas.')) return;
+                    await apply('users', () => api.updateTask(t.id, { userIds: users.map((u) => u.id) }), 'Asignados actualizados');
+                  }} />
+              </div>
             </div>
 
             {t.state !== '1_done' && (
@@ -88,8 +99,6 @@ export function TaskPanel({ taskId, version, onClose, onChanged }: { taskId: num
             )}
 
             {t.project && <TimerSection taskId={t.id} />}
-
-            <div className="text-xs text-zinc-500">Asignada a: {t.assignees.map((a) => a.name).join(', ') || 'nadie'}</div>
 
             {t.description && (
               <section>
