@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from './config.js';
 import { HttpError, fromOdoo, odoo, toOdoo } from './odoo.js';
 import { freshLocation, lastLocation, locationForAttendance, odooGeoFields } from './location.js';
+import { isWorkday } from './schedule.js';
 import type { GeoFix, Place, Reminder, Today } from './types.js';
 
 // ---------- Estado local de la comida (Odoo no distingue una salida a comer de otra salida) ----------
@@ -30,7 +31,6 @@ const minuteOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
 const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const fmtMinutes = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const isWorkday = (d: Date) => config.reminders.workDays.has(((d.getDay() + 6) % 7) + 1);
 const humanDate = (d: Date) =>
   localDate(d) === localDate(new Date()) ? hhmm(d) : d.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 

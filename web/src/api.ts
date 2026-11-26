@@ -1,4 +1,4 @@
-import type { Account, NewTask, ProjectBoard, ProjectSummary, Ref, Stage, Task, TaskDetail, TaskPatch, TimerInfo, Today } from '../../server/types';
+import type { Account, Estimate, NewTask, ProjectBoard, ProjectSummary, Ref, Stage, Task, TaskDetail, TaskPatch, TimerInfo, Today } from '../../server/types';
 
 export type * from '../../server/types';
 
@@ -41,6 +41,8 @@ export const api = {
   comment: (id: number, body: string) => req<TaskDetail>('POST', `/api/tasks/${id}/comments`, { body }),
   createTask: (input: NewTask) => req<TaskDetail>('POST', '/api/tasks', input),
   tags: () => req<Ref[]>('GET', '/api/tags'),
+  estimate: (deadline: string, start?: string) =>
+    req<Estimate>('GET', `/api/estimate?${new URLSearchParams({ deadline, ...(start ? { start } : {}) })}`),
 
   timer: () => req<TimerInfo | null>('GET', '/api/timer'),
   startTimer: (taskId: number, startedAt?: string) => req<TimerInfo>('POST', `/api/tasks/${taskId}/timer/start`, { startedAt }),

@@ -57,7 +57,7 @@ const run = (fn: () => Promise<unknown>) => async (): Promise<Result> => {
 const READ = { readOnlyHint: true, openWorldHint: true } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: true } as const;
 
-const when = z.string().describe('"YYYY-MM-DD" (medianoche local) o "YYYY-MM-DDTHH:MM" en hora local de la Mac');
+const when = z.string().describe('"YYYY-MM-DDTHH:MM" en hora local de la Mac, o "YYYY-MM-DD" (inicio de la jornada; en fecha límite, fin de la jornada)');
 const STATES = ['01_in_progress', '02_changes_requested', '03_approved', '04_waiting_normal', '1_done', '1_canceled'] as const;
 
 const server = new McpServer(
@@ -158,8 +158,8 @@ server.registerTool('current_timer', {
 
 const taskFields = {
   stageId: z.number().int().positive().optional().describe('Id de etapa (de list_stages)'),
-  deadline: when.optional().describe('Fecha límite: "YYYY-MM-DD" o con hora "YYYY-MM-DDTHH:MM"'),
-  plannedStart: when.optional().describe('Inicio planeado'),
+  deadline: when.optional().describe('Fecha límite: "YYYY-MM-DD" (= ese día a la hora de salida) o con hora "YYYY-MM-DDTHH:MM"'),
+  plannedStart: when.optional().describe('Inicio planeado (al crear, por defecto ahora o startedAt)'),
   allocatedHours: z.number().min(0).max(1000).optional().describe('Horas estimadas'),
   tags: z.array(z.string()).optional().describe('Nombres de etiquetas (reemplazan las actuales)'),
   createMissingTags: z.boolean().optional().describe('Crear las etiquetas que no existan; solo si el usuario lo pidió'),
@@ -168,7 +168,9 @@ const taskFields = {
 
 server.registerTool('create_task', {
   title: 'Crear tarea',
-  description: 'Crea una tarea en un proyecto, asignada al usuario por defecto. Con `startedAt` además inicia el temporizador desde esa hora.',
+  description: 'Crea una tarea en un proyecto, asignada al usuario por defecto. El inicio planeado es ahora (o `startedAt`). '
+    + 'Si no envías allocatedHours y hay fecha límite, se estiman con el tiempo laboral entre el inicio y la fecha límite; '
+    + 'si el usuario dijo cuánto le tomará, envíalo. Con `startedAt` además inicia el temporizador desde esa hora.',
   inputSchema: {
     projectId: z.number().int().positive(),
     name: z.string().min(1),

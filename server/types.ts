@@ -144,11 +144,19 @@ export interface TaskPatch {
   plannedStart?: string | null;
 }
 
+/** Fechas planeadas que tendría una tarea nueva (GET /api/estimate). */
+export interface Estimate {
+  start: string | null;       // inicio planeado (ahora o la hora indicada)
+  deadline: string | null;    // fecha límite resuelta (una fecha sola = fin de la jornada)
+  hours: number;              // tiempo laboral entre ambos, en horas
+}
+
 export interface NewTask extends Omit<TaskPatch, 'state' | 'deadline' | 'plannedStart'> {
   projectId: number;
   name: string;
   description?: string;
   deadline?: string;
+  /** Por defecto: ahora (o `startedAt`). */
   plannedStart?: string;
   /** Por defecto true: asignada al usuario del token. */
   assignToMe?: boolean;

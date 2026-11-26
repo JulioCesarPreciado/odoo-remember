@@ -10,6 +10,7 @@ import * as attendance from './attendance.js';
 import * as location from './location.js';
 import * as tasks from './tasks.js';
 import * as timer from './timer.js';
+import type { Estimate } from './types.js';
 
 const app = new Hono();
 
@@ -66,6 +67,10 @@ app.post('/api/attendance/lunch/end', async (c) => c.json(await attendance.lunch
 app.get('/api/tasks/mine', async (c) => c.json(await tasks.myTasks()));
 app.get('/api/projects', async (c) => c.json(await tasks.projects(c.req.query('q'))));
 app.get('/api/tags', async (c) => c.json(await tasks.findTags(c.req.query('q'))));
+app.get('/api/estimate', (c) => {
+  const { start, deadline, hours } = tasks.plannedDates({ deadline: c.req.query('deadline'), startedAt: c.req.query('start') });
+  return c.json({ start: start?.toISOString() ?? null, deadline: deadline?.toISOString() ?? null, hours } satisfies Estimate);
+});
 app.get('/api/projects/:id/stages', async (c) => c.json(await tasks.stages(id(c))));
 app.get('/api/stages', async (c) => {
   const ids = (c.req.query('projects') ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);

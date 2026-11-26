@@ -1,4 +1,5 @@
 import { HttpError, fromOdoo, odoo, ref, toOdoo } from './odoo.js';
+import { estimateHours, workdayEdge } from './schedule.js';
 import { assertCanStart, startTimer } from './timer.js';
 import type { NewTask, ProjectBoard, ProjectSummary, Ref, Stage, StageGroup, Task, TaskDetail, TaskPatch, TaskState } from './types.js';
 
@@ -17,12 +18,13 @@ type RawTask = {
 export const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
 /**
- * Fecha u hora que manda el cliente → formato UTC de Odoo.
- * "YYYY-MM-DD" = medianoche local (como lo guarda la interfaz de Odoo); una fecha-hora sin zona se toma como hora local.
+ * Fecha u hora que manda el cliente → Date.
+ * Una fecha-hora sin zona se toma como hora local. Una fecha sola ("YYYY-MM-DD") es ese día al inicio de la jornada,
+ * o al fin si `dateOnly` es 'end' (fecha límite "para hoy" = hoy a la hora de salida).
  */
-export function parseWhen(value: string, field: string): Date {
+export function parseWhen(value: string, field: string, dateOnly: 'start' | 'end' = 'start'): Date {
   const v = value.trim();
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? workdayEdge(v, dateOnly) : new Date(v);
   if (Number.isNaN(d.getTime())) throw new HttpError(`${field}: fecha inválida "${value}" (usa YYYY-MM-DD o YYYY-MM-DDTHH:MM)`, 400);
   return d;
 }
@@ -257,7 +259,7 @@ async function taskVals(projectId: number, p: TaskPatch): Promise<Record<string,
     vals.state = p.state;
   }
   if (p.priority !== undefined) vals.priority = p.priority ? '1' : '0';
-  if (p.deadline !== undefined) vals.date_deadline = p.deadline ? toOdoo(parseWhen(p.deadline, 'deadline')) : false;
+  if (p.deadline !== undefined) vals.date_deadline = p.deadline ? toOdoo(parseWhen(p.deadline, 'deadline', 'end')) : false;
   if (p.plannedStart !== undefined) vals.planned_date_begin = p.plannedStart ? toOdoo(parseWhen(p.plannedStart, 'plannedStart')) : false;
   if (p.name !== undefined) {
     if (!p.name.trim()) throw new HttpError('La tarea necesita un nombre', 400);
@@ -285,8 +287,26 @@ async function projectOf(id: number): Promise<number> {
 export async function updateTask(id: number, patch: TaskPatch) {
   const vals = await taskVals(await projectOf(id), patch);
   if (!Object.keys(vals).length) throw new HttpError('Nada que actualizar', 400);
+  await keepPlannedDatesValid(id, vals);
   await odoo.call('project.task', 'write', [[id], vals]);
   return task(id);
+}
+
+/**
+ * Odoo exige inicio planeado <= fecha límite. Si solo se adelanta la fecha límite antes del inicio, se quita el inicio
+ * (como al crear con una fecha límite vencida); si se mandaron ambos al revés, es un error del cliente.
+ * Ambos valores están en formato UTC de Odoo ("YYYY-MM-DD HH:MM:SS"), que se compara bien como texto.
+ */
+async function keepPlannedDatesValid(id: number, vals: Record<string, unknown>) {
+  const deadline = vals.date_deadline;
+  if (typeof deadline !== 'string') return;
+  if (typeof vals.planned_date_begin === 'string') {
+    if (vals.planned_date_begin > deadline) throw new HttpError('El inicio planeado no puede ser posterior a la fecha límite', 400);
+    return;
+  }
+  if (vals.planned_date_begin !== undefined) return;
+  const [row] = await odoo.call<{ planned_date_begin: string | false }[]>('project.task', 'read', [[id]], { fields: ['planned_date_begin'] });
+  if (row?.planned_date_begin && row.planned_date_begin > deadline) vals.planned_date_begin = false;
 }
 
 export async function logTime(id: number, input: { hours: number; description: string; date?: string }) {
@@ -318,6 +338,9 @@ export async function createTask(input: NewTask) {
   const { uid } = await odoo.me();
   const { projectId, description, assignToMe, startedAt, ...rest } = input;
   if (startedAt) await assertCanStart(startedAt);               // validar antes de crear nada (tarea o etiquetas)
+  const plan = plannedDates({ deadline: rest.deadline, plannedStart: rest.plannedStart, startedAt });
+  rest.plannedStart = plan.start?.toISOString();
+  if (rest.allocatedHours === undefined && plan.hours) rest.allocatedHours = plan.hours;
   const vals: Record<string, unknown> = { project_id: projectId, ...(await taskVals(projectId, rest)) };
   if (description) vals.description = description.split('\n').map((l) => `<p>${escapeHtml(l)}</p>`).join('');
   vals.user_ids = assignToMe === false ? [[6, 0, []]] : [[6, 0, [uid]]];
@@ -325,6 +348,22 @@ export async function createTask(input: NewTask) {
   projectsCache = null;
   if (startedAt) await startTimer(id, startedAt);
   return task(id);
+}
+
+/**
+ * Fechas planeadas de una tarea nueva: el inicio es el indicado, o la hora en que empezó (startedAt), o ahora.
+ * `hours` es el tiempo laboral entre el inicio y la fecha límite, para usarlo como estimado si no se indicó.
+ */
+export function plannedDates(input: { deadline?: string; plannedStart?: string; startedAt?: string }) {
+  const deadline = input.deadline ? parseWhen(input.deadline, 'deadline', 'end') : null;
+  let start: Date | null = input.plannedStart ? parseWhen(input.plannedStart, 'plannedStart')
+    : input.startedAt ? parseWhen(input.startedAt, 'startedAt') : new Date();
+  if (deadline && start > deadline) {
+    // Odoo exige inicio <= fecha límite. Si el inicio fue explícito es un error; si era el automático, se omite.
+    if (input.plannedStart) throw new HttpError('El inicio planeado no puede ser posterior a la fecha límite', 400);
+    start = null;
+  }
+  return { start, deadline, hours: start && deadline ? estimateHours(start, deadline) : 0 };
 }
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

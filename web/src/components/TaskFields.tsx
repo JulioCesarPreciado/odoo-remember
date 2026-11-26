@@ -93,7 +93,7 @@ export function TagPicker({ value, onChange, disabled, id }: {
 /** Lo que espera la API: nombres + si hay que crear las nuevas. */
 export const tagsPayload = (tags: PickedTag[]) => ({ tags: tags.map((t) => t.name), createMissingTags: tags.some((t) => t.isNew) || undefined });
 
-// ---------- Fecha límite con hora opcional ----------
+// ---------- Fecha límite con hora opcional (sin hora, la API la toma al fin de la jornada) ----------
 
 /** ISO de la API → { date: "YYYY-MM-DD", time: "HH:MM" | "" } en hora local ("" si es medianoche). */
 export function splitDeadline(iso: string | null): { date: string; time: string } {
