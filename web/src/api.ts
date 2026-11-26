@@ -41,6 +41,7 @@ export const api = {
   comment: (id: number, body: string) => req<TaskDetail>('POST', `/api/tasks/${id}/comments`, { body }),
   createTask: (input: NewTask) => req<TaskDetail>('POST', '/api/tasks', input),
   tags: () => req<Ref[]>('GET', '/api/tags'),
+  users: () => req<Ref[]>('GET', '/api/users'),
   estimate: (deadline: string, start?: string) =>
     req<Estimate>('GET', `/api/estimate?${new URLSearchParams({ deadline, ...(start ? { start } : {}) })}`),
 

@@ -133,7 +133,7 @@ export interface TaskPatch {
   stageId?: number;
   state?: TaskState;
   priority?: boolean;
-  /** "YYYY-MM-DD" (medianoche local) o fecha-hora ISO; null la quita. */
+  /** "YYYY-MM-DD" (fin de la jornada) o fecha-hora ISO; null la quita. */
   deadline?: string | null;
   name?: string;
   /** Reemplaza las etiquetas por estas (por nombre). */
@@ -142,6 +142,8 @@ export interface TaskPatch {
   allocatedHours?: number;
   /** Inicio planeado (fecha-hora). */
   plannedStart?: string | null;
+  /** Reemplaza a los asignados por estos usuarios (ids de GET /api/users). */
+  userIds?: number[];
 }
 
 /** Fechas planeadas que tendría una tarea nueva (GET /api/estimate). */
@@ -158,7 +160,7 @@ export interface NewTask extends Omit<TaskPatch, 'state' | 'deadline' | 'planned
   deadline?: string;
   /** Por defecto: ahora (o `startedAt`). */
   plannedStart?: string;
-  /** Por defecto true: asignada al usuario del token. */
+  /** Por defecto true: asignada al usuario del token. Se suma a `userIds` (otros asignados). */
   assignToMe?: boolean;
   /** "Ya empecé a las…": inicia el temporizador con esa hora de inicio. */
   startedAt?: string;

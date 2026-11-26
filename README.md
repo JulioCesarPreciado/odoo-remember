@@ -140,8 +140,8 @@ Cada entrada y salida (incluida la comida) se guarda en Odoo con la ubicación: 
 - **Mis tareas pendientes:** asignadas a ti y abiertas, por proyecto o por fecha límite.
 - **Tareas por proyecto:** proyectos donde tienes tareas, eres seguidor o responsable; tareas abiertas agrupadas por etapa (paginadas), filtro "solo mías", búsqueda y nueva tarea.
 - **Temporizador:** barra con la tarea que tiene el temporizador de Odoo corriendo y el tiempo transcurrido; al detenerlo pide qué hiciste y registra las horas.
-- **Nueva tarea:** etapa, horas estimadas (si se dejan vacías, se calculan con el tiempo laboral hasta la fecha límite), fecha límite con hora opcional (sin hora = fin de la jornada), inicio planeado al momento de crearla, etiquetas con autocompletado (crear una nueva requiere elegir «Crear etiqueta») y «Ya empecé a las…», que inicia el temporizador desde esa hora.
-- **Detalle de tarea:** cambiar etapa, estado, prioridad, fecha límite (con hora), horas estimadas y etiquetas (crear una nueva pide confirmación); iniciar o detener el temporizador; marcar como hecha; registrar horas; comentar en el chatter.
+- **Nueva tarea:** etapa, horas estimadas (si se dejan vacías, se calculan con el tiempo laboral hasta la fecha límite), fecha límite con hora opcional (sin hora = fin de la jornada), inicio planeado al momento de crearla, etiquetas con autocompletado (crear una nueva requiere elegir «Crear etiqueta»), otras personas asignadas y «Ya empecé a las…», que inicia el temporizador desde esa hora.
+- **Detalle de tarea:** cambiar etapa, estado, prioridad, fecha límite (con hora), horas estimadas, etiquetas (crear una nueva pide confirmación) y personas asignadas (quitarte a ti mismo pide confirmación); iniciar o detener el temporizador; marcar como hecha; registrar horas; comentar en el chatter.
 
 ---
 
@@ -161,12 +161,13 @@ Escucha solo en `127.0.0.1`, rechaza otros `Host`/`Origin` y exige `Content-Type
 | GET | `/api/tasks/mine` | Mis tareas abiertas |
 | GET | `/api/projects?q=` | Proyectos donde participo (con conteos); `q` busca por palabras sin acentos ni mayúsculas |
 | GET | `/api/tags?q=` | Etiquetas de tareas |
+| GET | `/api/users?q=` | Usuarios internos activos (para asignar tareas); busca por palabras sin acentos |
 | GET | `/api/estimate?deadline=&start=` | Inicio planeado, fecha límite resuelta y horas laborables entre ambos (lo que usaría una tarea nueva) |
 | GET | `/api/projects/:id/stages` | Etapas del proyecto |
 | GET | `/api/projects/:id/tasks?mine=1&q=&stage=&offset=&limit=` | Tareas abiertas agrupadas por etapa |
-| POST | `/api/tasks` | Crear tarea `{projectId, name, description?, stageId?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, assignToMe?, priority?, startedAt?}` |
+| POST | `/api/tasks` | Crear tarea `{projectId, name, description?, stageId?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, assignToMe?, userIds?, priority?, startedAt?}`; `userIds` se suman al usuario si `assignToMe` |
 | GET | `/api/tasks/:id` | Detalle con horas y comentarios |
-| PATCH | `/api/tasks/:id` | `{stageId?, state?, priority?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, name?}` |
+| PATCH | `/api/tasks/:id` | `{stageId?, state?, priority?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, userIds?, name?}`; `userIds` reemplaza a todos los asignados |
 | POST | `/api/tasks/:id/timesheets` | `{hours, description, date?}` |
 | POST | `/api/tasks/:id/comments` | `{body}` |
 | GET | `/api/timer` | Temporizador de tareas corriendo, o `null` |
@@ -198,7 +199,7 @@ claude mcp add --scope user odoo-remember -- node "$PWD/dist/server/mcp.js"
 
 | Lectura | Escritura |
 | ------- | --------- |
-| `whoami`, `attendance_today`, `find_projects`, `list_stages`, `find_tags`, `my_tasks`, `project_tasks`, `get_task`, `current_timer` | `create_task`, `update_task`, `log_time`, `comment_task`, `start_timer`, `stop_timer` |
+| `whoami`, `attendance_today`, `find_projects`, `list_stages`, `find_tags`, `find_users`, `my_tasks`, `project_tasks`, `get_task`, `current_timer` | `create_task`, `update_task`, `log_time`, `comment_task`, `start_timer`, `stop_timer` |
 
 - **Permisos:** Claude Code pide permiso antes de usar cada herramienta. Las de lectura se pueden permitir siempre con `/permissions`.
 - **Instrucciones:** el servidor le indica a Claude que resuelva el proyecto y la etapa con `find_projects` y `list_stages`, y que pregunte si hay ambigüedad. Tampoco debe crear etiquetas que el usuario no haya pedido.

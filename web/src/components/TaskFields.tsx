@@ -90,6 +90,74 @@ export function TagPicker({ value, onChange, disabled, id }: {
   );
 }
 
+// ---------- Personas ----------
+
+let usersPromise: Promise<Ref[]> | null = null;
+const loadUsers = () => (usersPromise ??= api.users().catch((e) => { usersPromise = null; throw e; }));
+let uidPromise: Promise<number> | null = null;
+/** Id del usuario del token (para avisar antes de quitarse a sí mismo de una tarea). */
+export const myUid = () => (uidPromise ??= api.account().then((a) => a.uid).catch((e) => { uidPromise = null; throw e; }));
+
+/** Selector de personas (usuarios internos de Odoo). Sugiere mientras se escribe; busca por palabras sin acentos. */
+export function UserPicker({ value, onChange, disabled, id, placeholder = 'Buscar persona…' }: {
+  value: Ref[]; onChange: (users: Ref[]) => void; disabled?: boolean; id?: string; placeholder?: string;
+}) {
+  const [all, setAll] = useState<Ref[]>([]);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { loadUsers().then(setAll).catch(() => {}); }, []);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  const chosen = useMemo(() => new Set(value.map((u) => u.id)), [value]);
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  const options = words.length ? all.filter((u) => !chosen.has(u.id) && words.every((w) => fold(u.name).includes(w))).slice(0, 8) : [];
+
+  const add = (u: Ref) => { onChange([...value, u]); setQ(''); setActive(0); };
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActive((a) => Math.min(a + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (e.key === 'Enter' && open && options[active]) { e.preventDefault(); add(options[active]); }
+    else if (e.key === 'Backspace' && !q && value.length) onChange(value.slice(0, -1));
+    else if (e.key === 'Escape') setOpen(false);
+  };
+
+  return (
+    <div ref={box} className="relative">
+      <div className={`input flex min-h-[34px] flex-wrap items-center gap-1 py-1 ${disabled ? 'opacity-60' : ''}`}
+        onClick={() => box.current?.querySelector('input')?.focus()}>
+        {value.map((u) => (
+          <span key={u.id} className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+            {u.name}
+            {!disabled && <button type="button" aria-label={`Quitar a ${u.name}`} className="opacity-60 hover:opacity-100"
+              onClick={(e) => { e.stopPropagation(); onChange(value.filter((x) => x.id !== u.id)); }}>×</button>}
+          </span>
+        ))}
+        <input id={id} className="min-w-24 flex-1 bg-transparent text-sm outline-none" disabled={disabled} value={q}
+          placeholder={value.length ? '' : placeholder}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }} onFocus={() => setOpen(true)} onKeyDown={onKey}
+          role="combobox" aria-expanded={open} aria-autocomplete="list" />
+      </div>
+      {open && options.length > 0 && (
+        <ul role="listbox" className="card absolute z-50 mt-1 max-h-56 w-full overflow-y-auto py-1 shadow-lg">
+          {options.map((u, i) => (
+            <li key={u.id} role="option" aria-selected={i === active}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => add(u)} onMouseEnter={() => setActive(i)}
+                className={`w-full px-3 py-1.5 text-left text-sm ${i === active ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}>{u.name}</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Lo que espera la API: nombres + si hay que crear las nuevas. */
 export const tagsPayload = (tags: PickedTag[]) => ({ tags: tags.map((t) => t.name), createMissingTags: tags.some((t) => t.isNew) || undefined });
 

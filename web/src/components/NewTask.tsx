@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, type Estimate, type ProjectSummary, type Stage, type TaskDetail } from '../api';
+import { api, type Estimate, type ProjectSummary, type Ref, type Stage, type TaskDetail } from '../api';
 import { todayAt, useTimer } from '../timer';
 import { Spinner, hhmm, useAction } from '../ui';
-import { DeadlineInput, TagPicker, forgetTags, joinDeadline, tagsPayload, type PickedTag } from './TaskFields';
+import { DeadlineInput, TagPicker, UserPicker, forgetTags, joinDeadline, tagsPayload, type PickedTag } from './TaskFields';
 
 const nowHHMM = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
@@ -17,6 +17,7 @@ export function NewTask({ project, stages, onClose, onCreated }: {
   const [tags, setTags] = useState<PickedTag[]>([]);
   const [description, setDescription] = useState('');
   const [assignToMe, setAssignToMe] = useState(true);
+  const [others, setOthers] = useState<Ref[]>([]);
   const [priority, setPriority] = useState(false);
   const [started, setStarted] = useState(false);
   const [startedAt, setStartedAt] = useState(nowHHMM);
@@ -41,6 +42,7 @@ export function NewTask({ project, stages, onClose, onCreated }: {
     e.preventDefault();
     const t = await run('create', () => api.createTask({
       projectId: project.id, name, stageId, assignToMe, priority,
+      userIds: others.length ? others.map((u) => u.id) : undefined,
       description: description || undefined,
       deadline: deadlineValue ?? undefined,
       allocatedHours: hours ? Number(hours) : undefined,
@@ -90,6 +92,10 @@ export function NewTask({ project, stages, onClose, onCreated }: {
         <div>
           <label className="label" htmlFor="nt-tags">Etiquetas</label>
           <TagPicker id="nt-tags" value={tags} onChange={setTags} />
+        </div>
+        <div>
+          <label className="label" htmlFor="nt-users">{assignToMe ? 'Asignar también a' : 'Asignar a'}</label>
+          <UserPicker id="nt-users" value={others} onChange={setOthers} />
         </div>
         <div>
           <label className="label" htmlFor="nt-desc">Descripción</label>
