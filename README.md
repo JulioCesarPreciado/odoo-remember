@@ -116,7 +116,7 @@ En **Configuración del Sistema**:
 | salida a comer + 60 min | Regresa de comer | Registrar regreso | cada 10 min (hasta las 18:00) |
 | 18:00 | Registrar salida (si sigues dentro) | Registrar salida | cada 10 min |
 
-**Comida:** 60 min dentro de 14:00–16:00, así que se puede iniciar de 14:00 a 15:00. Odoo registra la salida a comer y el regreso como una salida y una entrada normales; la API guarda localmente (`data/state.json`) cuál fue la de comida.
+**Comida:** 60 min dentro de 14:00–16:00, así que se puede iniciar de 14:00 a 15:00. Fuera de ese horario también se puede registrar (por ejemplo, si la comida se recorrió), pero el panel y el menú piden confirmarlo y no se envía el recordatorio. Odoo registra la salida a comer y el regreso como una salida y una entrada normales; la API guarda localmente (`data/state.json`) cuál fue la de comida.
 
 ---
 

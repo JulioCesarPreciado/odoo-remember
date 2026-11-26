@@ -45,7 +45,9 @@ export interface Today {
     returnDueAt: string | null;
     window: { from: string; to: string; minutes: number };
     canStart: boolean;
+    inWindow: boolean;          // la hora actual está dentro del horario de comida
     reason: string | null;      // por qué no se puede iniciar
+    notice: string | null;      // se puede iniciar, pero fuera del horario: pedir confirmación
   };
   actions: { checkIn: boolean; checkOut: boolean; lunchStart: boolean; lunchEnd: boolean };
   reminder: Reminder | null;

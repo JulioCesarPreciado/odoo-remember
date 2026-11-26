@@ -127,12 +127,15 @@ export async function today(opts: { fresh?: boolean } = {}): Promise<Today> {
   const { from, to, minutes: lunchMin } = config.lunch;
   const latestStart = to - lunchMin;
   const m = minuteOfDay(now);
+  const inWindow = m >= from && m <= latestStart;
   let reason: string | null = null;
   if (day.lunchStart) reason = 'Ya tomaste tu hora de comida hoy.';
   else if (status !== 'working') reason = 'Debes tener la entrada registrada.';
-  else if (m < from || m > latestStart)
-    reason = `La comida (${lunchMin} min) se toma entre ${fmtMinutes(from)} y ${fmtMinutes(to)}; puedes salir de ${fmtMinutes(from)} a ${fmtMinutes(latestStart)}.`;
   const canStart = reason === null;
+  // Fuera del horario se permite (comidas que se recorren), pero se avisa para que el usuario lo confirme.
+  const notice = canStart && !inWindow
+    ? `Estás fuera del horario de comida (${fmtMinutes(from)}–${fmtMinutes(to)}, puedes salir de ${fmtMinutes(from)} a ${fmtMinutes(latestStart)}).`
+    : null;
   const returnDue = day.lunchStart ? new Date(new Date(day.lunchStart).getTime() + lunchMin * 60_000) : null;
 
   const t: Today = {
@@ -157,7 +160,9 @@ export async function today(opts: { fresh?: boolean } = {}): Promise<Today> {
       returnDueAt: returnDue?.toISOString() ?? null,
       window: { from: fmtMinutes(from), to: fmtMinutes(to), minutes: lunchMin },
       canStart,
+      inWindow,
       reason,
+      notice,
     },
     actions: {
       checkIn: status === 'no_entry' || status === 'out',
@@ -206,7 +211,7 @@ function reminder(t: Today, now: Date, returnDue: Date | null): Reminder | null 
     case 'working':
       if (m >= checkOutAt)
         return { kind: 'check_out', title: 'Registrar salida', body: `Entraste a las ${hhmm(new Date(t.firstCheckIn!))}. No olvides registrar tu salida.`, action: 'check_out', repeat: true };
-      if (t.lunch.canStart)
+      if (t.lunch.canStart && t.lunch.inWindow)
         return { kind: 'lunch_start', title: 'Hora de comida', body: `Puedes salir a comer entre ${t.lunch.window.from} y ${t.lunch.window.to} (${t.lunch.window.minutes} min).`, action: 'lunch_start', repeat: false };
       return null;
     case 'out':

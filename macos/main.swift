@@ -149,7 +149,7 @@ struct Reminder: Decodable, Equatable {
 }
 
 struct Actions: Decodable { let checkIn, checkOut, lunchStart, lunchEnd: Bool }
-struct Lunch: Decodable { let reason: String? }
+struct Lunch: Decodable { let reason, notice: String? }
 
 struct Today: Decodable {
     let date: String
@@ -317,7 +317,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         items[kActionCheckIn]?.isEnabled = t.actions.checkIn
         items[kActionCheckOut]?.isEnabled = t.actions.checkOut
         items[kActionLunchStart]?.isEnabled = t.actions.lunchStart
-        items[kActionLunchStart]?.toolTip = t.lunch.reason
+        items[kActionLunchStart]?.toolTip = t.lunch.reason ?? t.lunch.notice
+        items[kActionLunchStart]?.title = t.lunch.notice == nil ? "Salir a comer" : "Salir a comer (fuera de horario)"
+        lunchNotice = t.lunch.notice
         items[kActionLunchEnd]?.isEnabled = t.actions.lunchEnd
         items[kActionLunchEnd]?.isHidden = !t.actions.lunchEnd
         switch t.status {
@@ -330,7 +332,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc func menuCheckIn() { perform(kActionCheckIn) }
     @objc func menuCheckOut() { perform(kActionCheckOut) }
-    @objc func menuLunchStart() { perform(kActionLunchStart) }
+    @objc func menuLunchStart() {
+        // Fuera del horario de comida se permite, pero confirmando primero.
+        if let notice = lunchNotice, !confirmDialog(notice, info: "¿Registrar tu salida a comer de todos modos?") { return }
+        perform(kActionLunchStart)
+    }
+    var lunchNotice: String?
     @objc func menuLunchEnd() { perform(kActionLunchEnd) }
     @objc func menuRefresh() { refresh(force: true) }
     @objc func didWake() { refresh(force: true) }
@@ -543,21 +550,45 @@ extension AppDelegate: WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    // Los avisos del panel se muestran como hoja pegada a su ventana: un runModal suelto podía quedar
+    // detrás de la ventana y dejar la app bloqueada sin que se viera el aviso.
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping (Bool) -> Void) {
         let alert = NSAlert()
         alert.messageText = message
         alert.addButton(withTitle: "Aceptar")
         alert.addButton(withTitle: "Cancelar")
-        completionHandler(alert.runModal() == .alertFirstButtonReturn)
+        present(alert, over: webView.window) { completionHandler($0 == .alertFirstButtonReturn) }
     }
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping () -> Void) {
         let alert = NSAlert()
         alert.messageText = message
-        alert.runModal()
-        completionHandler()
+        present(alert, over: webView.window) { _ in completionHandler() }
+    }
+
+    func present(_ alert: NSAlert, over window: NSWindow?, then done: @escaping (NSApplication.ModalResponse) -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            alert.beginSheetModal(for: window, completionHandler: done)
+        } else {
+            alert.window.level = .modalPanel
+            done(alert.runModal())
+        }
+    }
+
+    /// Confirmación desde el menú (la app no tiene ventana activa): al frente y por encima de todo.
+    func confirmDialog(_ message: String, info: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = info
+        alert.addButton(withTitle: "Aceptar")
+        alert.addButton(withTitle: "Cancelar")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.level = .modalPanel
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 
