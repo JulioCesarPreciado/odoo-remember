@@ -114,7 +114,7 @@ function Deadline({ task, busy, onSave }: { task: TaskDetail; busy: boolean; onS
   const dirty = v.date !== server.date || v.time !== server.time;
   return (
     <div className="col-span-2 sm:col-span-1">
-      <label className="label" htmlFor="tp-deadline">Fecha límite <span className="font-normal">(hora opcional)</span></label>
+      <label className="label" htmlFor="tp-deadline">Fecha límite <span className="font-normal">(sin hora = fin de la jornada)</span></label>
       <DeadlineInput id="tp-deadline" date={v.date} time={v.time} disabled={busy} onChange={(date, time) => setV({ date, time })} />
       {dirty
         ? <div className="mt-1 flex gap-2 text-xs">

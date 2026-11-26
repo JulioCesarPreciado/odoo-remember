@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import { api, type ProjectSummary, type Stage, type TaskDetail } from '../api';
+import { useEffect, useState, type FormEvent } from 'react';
+import { api, type Estimate, type ProjectSummary, type Stage, type TaskDetail } from '../api';
 import { todayAt, useTimer } from '../timer';
-import { Spinner, useAction } from '../ui';
+import { Spinner, hhmm, useAction } from '../ui';
 import { DeadlineInput, TagPicker, forgetTags, joinDeadline, tagsPayload, type PickedTag } from './TaskFields';
 
 const nowHHMM = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -25,12 +25,24 @@ export function NewTask({ project, stages, onClose, onCreated }: {
 
   const startInFuture = started && startedAt > nowHHMM();
 
+  // El servidor resuelve la fecha límite (sin hora = fin de la jornada) y calcula el tiempo laboral disponible,
+  // que se usa como horas estimadas si el campo se deja vacío.
+  const deadlineValue = joinDeadline(deadline.date, deadline.time);
+  const startValue = started && !startInFuture ? todayAt(startedAt) : undefined;
+  const [estimate, setEstimate] = useState<Estimate | null>(null);
+  useEffect(() => {
+    if (!deadlineValue) { setEstimate(null); return; }
+    let live = true;
+    api.estimate(deadlineValue, startValue).then((e) => live && setEstimate(e), () => live && setEstimate(null));
+    return () => { live = false; };
+  }, [deadlineValue, startValue]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const t = await run('create', () => api.createTask({
       projectId: project.id, name, stageId, assignToMe, priority,
       description: description || undefined,
-      deadline: joinDeadline(deadline.date, deadline.time) ?? undefined,
+      deadline: deadlineValue ?? undefined,
       allocatedHours: hours ? Number(hours) : undefined,
       ...(tags.length ? tagsPayload(tags) : {}),
       startedAt: started ? todayAt(startedAt) : undefined,
@@ -61,12 +73,19 @@ export function NewTask({ project, stages, onClose, onCreated }: {
           </div>
           <div>
             <label className="label" htmlFor="nt-hours">Horas estimadas</label>
-            <input id="nt-hours" type="number" min="0" max="1000" step="0.25" className="input" placeholder="—" value={hours} onChange={(e) => setHours(e.target.value)} />
+            <input id="nt-hours" type="number" min="0" max="1000" step="0.25" className="input" placeholder={estimate?.hours ? `${estimate.hours} (auto)` : '—'}
+              value={hours} onChange={(e) => setHours(e.target.value)} />
           </div>
         </div>
         <div>
-          <label className="label" htmlFor="nt-deadline">Fecha límite <span className="font-normal">(hora opcional)</span></label>
+          <label className="label" htmlFor="nt-deadline">Fecha límite <span className="font-normal">(sin hora = fin de la jornada)</span></label>
           <DeadlineInput id="nt-deadline" date={deadline.date} time={deadline.time} onChange={(date, time) => setDeadline({ date, time })} />
+          <p className="mt-1 text-xs text-zinc-500">
+            Inicio planeado: {started ? `hoy a las ${startedAt}` : 'al crear la tarea'}
+            {estimate?.deadline && !deadline.time && <> · vence a las {hhmm(estimate.deadline)}</>}
+            {estimate && !estimate.start && <> · la fecha límite ya pasó, no se fijará inicio</>}
+            {!hours && estimate?.hours ? <> · se estimarán <b>{estimate.hours} h</b> (tiempo laboral hasta la fecha límite)</> : null}
+          </p>
         </div>
         <div>
           <label className="label" htmlFor="nt-tags">Etiquetas</label>

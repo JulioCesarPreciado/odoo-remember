@@ -140,7 +140,7 @@ Cada entrada y salida (incluida la comida) se guarda en Odoo con la ubicación: 
 - **Mis tareas pendientes:** asignadas a ti y abiertas, por proyecto o por fecha límite.
 - **Tareas por proyecto:** proyectos donde tienes tareas, eres seguidor o responsable; tareas abiertas agrupadas por etapa (paginadas), filtro "solo mías", búsqueda y nueva tarea.
 - **Temporizador:** barra con la tarea que tiene el temporizador de Odoo corriendo y el tiempo transcurrido; al detenerlo pide qué hiciste y registra las horas.
-- **Nueva tarea:** etapa, horas estimadas, fecha límite con hora opcional, etiquetas con autocompletado (crear una nueva requiere elegir «Crear etiqueta») y «Ya empecé a las…», que inicia el temporizador desde esa hora.
+- **Nueva tarea:** etapa, horas estimadas (si se dejan vacías, se calculan con el tiempo laboral hasta la fecha límite), fecha límite con hora opcional (sin hora = fin de la jornada), inicio planeado al momento de crearla, etiquetas con autocompletado (crear una nueva requiere elegir «Crear etiqueta») y «Ya empecé a las…», que inicia el temporizador desde esa hora.
 - **Detalle de tarea:** cambiar etapa, estado, prioridad, fecha límite (con hora), horas estimadas y etiquetas (crear una nueva pide confirmación); iniciar o detener el temporizador; marcar como hecha; registrar horas; comentar en el chatter.
 
 ---
@@ -161,6 +161,7 @@ Escucha solo en `127.0.0.1`, rechaza otros `Host`/`Origin` y exige `Content-Type
 | GET | `/api/tasks/mine` | Mis tareas abiertas |
 | GET | `/api/projects?q=` | Proyectos donde participo (con conteos); `q` busca por palabras sin acentos ni mayúsculas |
 | GET | `/api/tags?q=` | Etiquetas de tareas |
+| GET | `/api/estimate?deadline=&start=` | Inicio planeado, fecha límite resuelta y horas laborables entre ambos (lo que usaría una tarea nueva) |
 | GET | `/api/projects/:id/stages` | Etapas del proyecto |
 | GET | `/api/projects/:id/tasks?mine=1&q=&stage=&offset=&limit=` | Tareas abiertas agrupadas por etapa |
 | POST | `/api/tasks` | Crear tarea `{projectId, name, description?, stageId?, deadline?, plannedStart?, allocatedHours?, tags?, createMissingTags?, assignToMe?, priority?, startedAt?}` |
@@ -174,7 +175,8 @@ Escucha solo en `127.0.0.1`, rechaza otros `Host`/`Origin` y exige `Content-Type
 
 Reglas al crear o editar tareas:
 
-- **Fechas:** `"YYYY-MM-DD"` es medianoche local (igual que la interfaz de Odoo); `"YYYY-MM-DDTHH:MM"` sin zona es hora local.
+- **Fechas:** `"YYYY-MM-DDTHH:MM"` sin zona es hora local. Una fecha sola (`"YYYY-MM-DD"`) es ese día al inicio de la jornada (`REMINDER_START`), o al fin (`CHECKOUT_REMINDER_START`) si es fecha límite: «para hoy» = hoy a la hora de salida.
+- **Tarea nueva:** el inicio planeado (`planned_date_begin`) es el momento de crearla, o `startedAt` si se indicó; se omite si la fecha límite ya pasó (Odoo exige inicio ≤ fecha límite). Si no se envía `allocatedHours` y hay fecha límite, se usan las horas laborables entre el inicio y la fecha límite: días de `WORK_DAYS`, de `REMINDER_START` a `CHECKOUT_REMINDER_START`, menos la comida.
 - **Etiquetas:** van por nombre y coinciden sin importar acentos ni mayúsculas. Si alguna no existe responde 422, salvo que se envíe `createMissingTags: true`.
 - **Etapa:** se valida que pertenezca al proyecto.
 - **`startedAt`** ("ya empecé a las 10:35") inicia el temporizador con esa hora (máximo 24 h atrás). Si ya corre otro temporizador responde 409 antes de crear nada.
@@ -230,8 +232,8 @@ Copia `.env.example` a `.env`. El archivo `.env` contiene tu API key de Odoo y *
 | `ODOO_USER` | — | Usuario (correo) de Odoo |
 | `ODOO_TOKEN` | — | API key de Odoo |
 | `API_PORT` | `8787` | Puerto de la API local |
-| `REMINDER_START` | `08:00` | Desde cuándo avisa la entrada |
-| `CHECKOUT_REMINDER_START` | `18:00` | Desde cuándo avisa la salida |
+| `REMINDER_START` | `08:00` | Desde cuándo avisa la entrada; también inicio de la jornada para estimar tareas |
+| `CHECKOUT_REMINDER_START` | `18:00` | Desde cuándo avisa la salida; también fin de la jornada (fecha límite sin hora) |
 | `REMINDER_INTERVAL_MIN` | `10` | Minutos entre avisos |
 | `WORK_DAYS` | `1-5` | Días laborales: 1 = lunes … 7 = domingo (`1-5`, `1,2,3,4,5,6`) |
 | `LUNCH_WINDOW_START` | `14:00` | Inicio de la ventana de comida |
